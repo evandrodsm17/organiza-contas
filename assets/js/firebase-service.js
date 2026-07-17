@@ -33,8 +33,10 @@ export const FirebaseService = {
     return snap.exists() ? { id: snap.id, ...snap.data() } : null;
   },
   observeManagements(uid, callback, onError) {
-    return onSnapshot(query(collection(useServices().db, "managements"), where("memberIds", "array-contains", uid), orderBy("name")),
-      (snap) => callback(snap.docs.map((item) => ({ id: item.id, ...item.data() }))), onError);
+    return onSnapshot(query(collection(useServices().db, "managements"), where("memberIds", "array-contains", uid)),
+      (snap) => callback(snap.docs
+        .map((item) => ({ id: item.id, ...item.data() }))
+        .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR"))), onError);
   },
   async createManagement(data, user) {
     return addDoc(collection(useServices().db, "managements"), {
