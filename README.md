@@ -1,4 +1,4 @@
-# Conta Clara
+# OrganizaContas
 
 Aplicação financeira compartilhada feita em HTML, CSS e JavaScript puro com Firebase via CDN.
 
