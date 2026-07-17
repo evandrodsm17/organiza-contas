@@ -1,6 +1,6 @@
 # Configuração do Conta Clara no Firebase
 
-A interface usa HTML, CSS e JavaScript puro. Authentication, Firestore e Storage são acessados pelo SDK CDN. Duas Cloud Functions são usadas apenas para operações administrativas que não podem ser executadas com segurança no navegador.
+A interface usa HTML, CSS e JavaScript puro. Authentication e Firestore são acessados pelo SDK CDN. A criação de contas usa uma segunda sessão isolada do Authentication para não desconectar o master.
 
 ## Recursos implementados
 
@@ -12,7 +12,7 @@ A interface usa HTML, CSS e JavaScript puro. Authentication, Firestore e Storage
 - entradas e débitos categorizados;
 - vencimento, data planejada e data real de pagamento/recebimento independentes;
 - status pendente/pago;
-- comprovantes JPG, PNG, WEBP ou PDF de até 10 MB;
+- estrutura preparada para comprovantes quando o Storage for ativado;
 - sincronização em tempo real entre participantes.
 
 ## 1. Criar o projeto
@@ -21,7 +21,7 @@ A interface usa HTML, CSS e JavaScript puro. Authentication, Firestore e Storage
 2. Adicione um aplicativo Web e copie a configuração para `assets/js/firebase-config.js`.
 3. Habilite **Authentication > E-mail/senha**.
 4. Crie o Cloud Firestore em modo de produção.
-5. Ative o Cloud Storage. O Storage e as Cloud Functions podem exigir o plano Blaze.
+5. O Cloud Storage é opcional e exige o plano Blaze em projetos novos. Sem ele, apenas os anexos ficam indisponíveis.
 6. Instale as ferramentas: `npm install -g firebase-tools`.
 7. Na pasta do projeto, execute `firebase login` e `firebase use --add`.
 
@@ -49,10 +49,7 @@ Depois disso, novos usuários devem ser criados somente pelo painel master.
 ## 3. Instalar e publicar
 
 ```powershell
-cd functions
-npm install
-cd ..
-firebase deploy --only firestore:rules,firestore:indexes,storage,functions,hosting
+firebase deploy --only firestore:rules,firestore:indexes
 ```
 
 O índice composto pode levar alguns minutos para ficar pronto. Enquanto estiver sendo construído, o console do navegador poderá mostrar um link para acompanhar sua criação.
@@ -73,7 +70,8 @@ As senhas nunca são gravadas no Firestore. Elas pertencem exclusivamente ao Fir
 ## Observações de segurança
 
 - A configuração Web do Firebase é pública por natureza; a proteção está nas regras.
-- A Cloud Function verifica no servidor se o solicitante é master antes de criar usuários.
+- As regras só permitem que o master crie um perfil utilizável no Firestore.
+- O Authentication permite cadastro técnico de contas, mas uma conta sem perfil autorizado não consegue acessar nenhum dado da aplicação.
 - Somente o proprietário compartilha um gerenciamento.
 - Participantes `viewer` podem consultar, mas não alterar lançamentos ou anexos.
 - Desativar um perfil bloqueia o aplicativo pelas regras, mas não exclui sua conta do Authentication.

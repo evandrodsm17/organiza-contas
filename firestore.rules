@@ -13,8 +13,13 @@ service cloud.firestore {
       // O usuário autenticado precisa ler o próprio perfil para o app verificar
       // os campos active/role sem criar uma dependência circular na regra.
       allow get: if signedIn() && (request.auth.uid == userId || master());
-      allow list: if master();
-      allow create: if false; // Perfis são criados pela Cloud Function.
+      // Usuários ativos podem localizar outro participante pelo e-mail para
+      // compartilhar um gerenciamento. A tela completa continua restrita ao master.
+      allow list: if active();
+      allow create: if master()
+        && request.resource.data.role == 'user'
+        && request.resource.data.active == true
+        && request.resource.data.createdBy == request.auth.uid;
       allow update: if master()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active', 'canCreateManagement']);
       allow delete: if false;
@@ -27,10 +32,11 @@ service cloud.firestore {
         && request.resource.data.ownerId == request.auth.uid
         && request.resource.data.memberIds == [request.auth.uid]
         && request.resource.data.memberRoles[request.auth.uid] == 'owner';
-      allow update: if editor(managementId)
-        && request.resource.data.ownerId == resource.data.ownerId
-        && request.resource.data.memberIds == resource.data.memberIds
-        && request.resource.data.memberRoles == resource.data.memberRoles;
+      allow update: if request.resource.data.ownerId == resource.data.ownerId
+        && ((editor(managementId)
+          && request.resource.data.memberIds == resource.data.memberIds
+          && request.resource.data.memberRoles == resource.data.memberRoles)
+        || (active() && resource.data.ownerId == request.auth.uid));
       allow delete: if active() && resource.data.ownerId == request.auth.uid;
 
       match /transactions/{transactionId} {

@@ -1,9 +1,8 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
-import { addDoc, collection, deleteDoc, doc, getDoc, getFirestore, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
-import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-functions.js";
+import { deleteApp, initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+import { createUserWithEmailAndPassword, deleteUser, getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+import { addDoc, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, getFirestore, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 import { deleteObject, getDownloadURL, getStorage, ref, uploadBytes } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-storage.js";
-import { firebaseConfig, functionsRegion } from "./firebase-config.js";
+import { firebaseConfig } from "./firebase-config.js";
 
 const configured = !Object.values(firebaseConfig).some((value) => String(value).includes("SUBSTITUA") || String(value).includes("SEU_PROJETO"));
 let services;
@@ -13,8 +12,7 @@ function useServices() {
   if (!services) {
     const app = initializeApp(firebaseConfig);
     services = {
-      auth: getAuth(app), db: getFirestore(app), storage: getStorage(app),
-      functions: getFunctions(app, functionsRegion)
+      auth: getAuth(app), db: getFirestore(app), storage: getStorage(app)
     };
   }
   return services;
@@ -69,8 +67,36 @@ export const FirebaseService = {
     return { name: file.name, type: file.type, path, url: await getDownloadURL(objectRef) };
   },
   async deleteAttachment(path) { if (path) await deleteObject(ref(useServices().storage, path)); },
-  createManagedUser(data) { return httpsCallable(useServices().functions, "createManagedUser")(data); },
-  shareManagement(data) { return httpsCallable(useServices().functions, "shareManagement")(data); },
+  async createManagedUser(data) {
+    const secondaryApp = initializeApp(firebaseConfig, `user-creation-${Date.now()}`);
+    const secondaryAuth = getAuth(secondaryApp);
+    let credential;
+    try {
+      credential = await createUserWithEmailAndPassword(secondaryAuth, data.email.trim().toLowerCase(), data.password);
+      await updateProfile(credential.user, { displayName: data.name.trim() });
+      await setDoc(doc(useServices().db, "users", credential.user.uid), {
+        name: data.name.trim(), email: data.email.trim().toLowerCase(), role: "user", active: true,
+        canCreateManagement: Boolean(data.canCreateManagement), createdAt: serverTimestamp(),
+        createdBy: useServices().auth.currentUser.uid
+      });
+      return { uid: credential.user.uid };
+    } catch (error) {
+      if (credential?.user) await deleteUser(credential.user).catch(() => {});
+      throw error;
+    } finally {
+      await signOut(secondaryAuth).catch(() => {});
+      await deleteApp(secondaryApp);
+    }
+  },
+  async shareManagement({ managementId, email, role = "editor" }) {
+    const users = await getDocs(query(collection(useServices().db, "users"), where("email", "==", email.trim().toLowerCase())));
+    const target = users.docs.find((item) => item.data().active === true);
+    if (!target) throw new Error("Nenhum usuário ativo foi encontrado com esse e-mail.");
+    await updateDoc(doc(useServices().db, "managements", managementId), {
+      memberIds: arrayUnion(target.id), [`memberRoles.${target.id}`]: role, updatedAt: serverTimestamp()
+    });
+    return { uid: target.id };
+  },
   observeUsers(callback, onError) {
     return onSnapshot(query(collection(useServices().db, "users"), orderBy("name")),
       (snap) => callback(snap.docs.map((item) => ({ id: item.id, ...item.data() }))), onError);
