@@ -10,7 +10,9 @@ service cloud.firestore {
     function editor(id) { return member(id) && management(id).memberRoles[request.auth.uid] in ['owner', 'editor']; }
 
     match /users/{userId} {
-      allow get: if active() && (request.auth.uid == userId || master());
+      // O usuário autenticado precisa ler o próprio perfil para o app verificar
+      // os campos active/role sem criar uma dependência circular na regra.
+      allow get: if signedIn() && (request.auth.uid == userId || master());
       allow list: if master();
       allow create: if false; // Perfis são criados pela Cloud Function.
       allow update: if master()
