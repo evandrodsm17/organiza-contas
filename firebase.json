@@ -1,0 +1,10 @@
+{
+  "functions": [{ "source": "functions", "codebase": "default" }],
+  "firestore": { "rules": "firestore.rules", "indexes": "firestore.indexes.json" },
+  "storage": { "rules": "storage.rules" },
+  "hosting": {
+    "public": ".",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "functions/**", "*.rules", "firestore.indexes.json", "FIREBASE_SETUP.md"],
+    "rewrites": [{ "source": "**", "destination": "/index.html" }]
+  }
+}

@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function profile() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
+    function active() { return signedIn() && profile().active == true; }
+    function master() { return active() && profile().role == 'master'; }
+    function management(id) { return get(/databases/$(database)/documents/managements/$(id)).data; }
+    function member(id) { return active() && request.auth.uid in management(id).memberIds; }
+    function editor(id) { return member(id) && management(id).memberRoles[request.auth.uid] in ['owner', 'editor']; }
+
+    match /users/{userId} {
+      allow get: if active() && (request.auth.uid == userId || master());
+      allow list: if master();
+      allow create: if false; // Perfis são criados pela Cloud Function.
+      allow update: if master()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active', 'canCreateManagement']);
+      allow delete: if false;
+    }
+
+    match /managements/{managementId} {
+      allow get, list: if active() && request.auth.uid in resource.data.memberIds;
+      allow create: if active()
+        && (profile().canCreateManagement == true || master())
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.memberIds == [request.auth.uid]
+        && request.resource.data.memberRoles[request.auth.uid] == 'owner';
+      allow update: if editor(managementId)
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.memberIds == resource.data.memberIds
+        && request.resource.data.memberRoles == resource.data.memberRoles;
+      allow delete: if active() && resource.data.ownerId == request.auth.uid;
+
+      match /transactions/{transactionId} {
+        allow read: if member(managementId);
+        allow create: if editor(managementId) && request.resource.data.createdBy == request.auth.uid;
+        allow update: if editor(managementId);
+        allow delete: if editor(managementId);
+      }
+    }
+  }
+}

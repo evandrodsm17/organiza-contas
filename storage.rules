@@ -1,0 +1,21 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function activeMember(managementId) {
+      return request.auth != null
+        && request.auth.uid in firestore.get(/databases/(default)/documents/managements/$(managementId)).data.memberIds
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.active == true;
+    }
+    function canEdit(managementId) {
+      return activeMember(managementId)
+        && firestore.get(/databases/(default)/documents/managements/$(managementId)).data.memberRoles[request.auth.uid] in ['owner', 'editor'];
+    }
+    match /managements/{managementId}/receipts/{fileName} {
+      allow read: if activeMember(managementId);
+      allow create, update: if canEdit(managementId)
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('(image/jpeg|image/png|image/webp|application/pdf)');
+      allow delete: if canEdit(managementId);
+    }
+  }
+}
