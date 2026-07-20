@@ -2670,3 +2670,98 @@ html[data-theme="dark"] .day-item.income-received {
     color: #b8c9f5;
   }
 }
+
+/* Cadastro de despesas recorrentes */
+.recurrence-card,
+.recurrence-context {
+  grid-column: 1 / -1;
+  margin: 12px 0 8px;
+  padding: 16px;
+  border: 1px solid #dbe4fa;
+  border-radius: 14px;
+  background: #f5f8ff;
+}
+
+.recurrence-card[hidden] {
+  display: none;
+}
+
+.recurrence-toggle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.recurrence-toggle input {
+  width: 19px;
+  height: 19px;
+  margin: 0;
+  flex: 0 0 auto;
+  accent-color: #3157d5;
+}
+
+.recurrence-toggle span,
+.recurrence-context {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.recurrence-toggle b,
+.recurrence-context b {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.recurrence-toggle small,
+.recurrence-context small,
+.recurrence-options label > small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.recurrence-options {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+  gap: 14px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #dbe4fa;
+}
+
+.recurrence-options[hidden] {
+  display: none;
+}
+
+.recurrence-options label > small {
+  margin-top: -4px;
+}
+
+html[data-theme="dark"] .recurrence-card,
+html[data-theme="dark"] .recurrence-context {
+  border-color: #29334a;
+  background: #141925;
+}
+
+html[data-theme="dark"] .recurrence-options {
+  border-top-color: #29334a;
+}
+
+@media (max-width: 760px) {
+  .recurrence-card,
+  .recurrence-context {
+    grid-column: 1;
+    margin-top: 10px;
+    padding: 14px;
+  }
+
+  .recurrence-options {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}

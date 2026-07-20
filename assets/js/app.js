@@ -82,7 +82,13 @@ function renderDashboard(monthName) {
   return `<div class="content-head">${monthControl(monthName)}<span>${monthTransactions().length} lançamentos no período</span></div><section class="summary-grid">${summary("Entradas", total.income, "success", "↗")}${summary("Despesas", total.expense, "danger", "↘")}${summary("Pago", total.paid, "info", "✓")}${summary("Saldo previsto", total.income - total.expense, total.income - total.expense >= 0 ? "success" : "danger", "=")}</section><section class="dashboard-grid"><article class="panel"><div class="panel-head"><div><h2>Próximos lançamentos</h2><p>Vencimentos e recebimentos deste mês</p></div><button class="text-btn" data-go="records">Ver todos</button></div>${list.length ? `<div class="record-list">${list.map(recordRow).join("")}</div>` : empty("Nenhum lançamento neste mês.")}</article><article class="panel status-panel"><div class="panel-head"><div><h2>Situação das despesas</h2><p>Acompanhamento do mês</p></div></div><div class="donut" style="--paid:${total.expense ? Math.round(total.paid / total.expense * 100) : 0}"><div><b>${total.expense ? Math.round(total.paid / total.expense * 100) : 0}%</b><span>pago</span></div></div><div class="legend"><span><i class="dot blue"></i>Pago <b>${money.format(total.paid)}</b></span><span><i class="dot orange"></i>Pendente <b>${money.format(total.pending)}</b></span></div></article></section>`;
 }
 function summary(label, value, color, icon) { return `<article class="summary"><span class="summary-icon ${color}">${icon}</span><div><small>${label}</small><b>${money.format(value)}</b></div></article>`; }
-function recordRow(item) { const status = financialStatus(item); return `<button class="record-row" data-edit="${item.id}"><span class="cat-icon ${item.type === "income" ? "income-icon" : "expense-icon"}">${item.type === "income" ? "↗" : "↘"}</span><div><b>${esc(item.description)}</b><small>${esc(item.category)} · ${formatDate(item.dueDate)}</small></div><strong class="${item.type === "income" ? "positive" : ""}">${item.type === "income" ? "+ " : ""}${money.format(item.amount)}</strong><span class="pill ${status.className}">${status.label}</span></button>`; }
+function recordRow(item) {
+  const status = financialStatus(item);
+  const recurrence = Number(item.recurrenceTotal) > 1
+    ? ` · ${item.recurrenceType === "installment" ? "Parcela" : "Recorrente"} ${item.recurrenceIndex}/${item.recurrenceTotal}`
+    : "";
+  return `<button class="record-row" data-edit="${item.id}"><span class="cat-icon ${item.type === "income" ? "income-icon" : "expense-icon"}">${item.type === "income" ? "↗" : "↘"}</span><div><b>${esc(item.description)}</b><small>${esc(item.category)} · ${formatDate(item.dueDate)}${recurrence}</small></div><strong class="${item.type === "income" ? "positive" : ""}">${item.type === "income" ? "+ " : ""}${money.format(item.amount)}</strong><span class="pill ${status.className}">${status.label}</span></button>`;
+}
 
 function renderRecords(monthName) { const list = monthTransactions(); return `<div class="content-head">${monthControl(monthName)}<span>${list.length} registros no período</span></div><article class="panel"><div class="panel-head"><div><h2>Lançamentos do mês</h2><p>${canEdit() ? "Clique em um registro para editar, pagar ou anexar comprovante." : "Você possui acesso somente para consulta."}</p></div></div>${list.length ? `<div class="record-list">${list.map(recordRow).join("")}</div>` : empty("Nenhum lançamento cadastrado.")}</article>`; }
 
@@ -126,12 +132,64 @@ function openUserModal() { showModal(`<form class="modal" id="userForm"><button 
 
 function openRecordModal(item = {}) {
   const type = item.type || "expense"; const paid = item.status === "paid";
-  showModal(`<form class="modal modal-large" id="recordForm"><button class="modal-close" type="button">×</button><span class="eyebrow">${item.id ? "EDITAR" : "NOVO"} LANÇAMENTO</span><h2>${item.id ? esc(item.description) : "Adicionar ao calendário"}</h2><div class="type-toggle"><label><input type="radio" name="type" value="expense" ${type === "expense" ? "checked" : ""}> Débito</label><label><input type="radio" name="type" value="income" ${type === "income" ? "checked" : ""}> Entrada</label></div><div class="form-grid"><label>Descrição<input name="description" value="${attr(item.description || "")}" required maxlength="120"></label><label>Valor<input name="amount" type="number" min="0.01" step="0.01" value="${item.amount || ""}" required></label><label>Categoria<select name="category" id="categorySelect"></select></label><label>Data de vencimento/recebimento<input name="dueDate" type="date" value="${item.dueDate || ""}" required></label><label>Data que deseja pagar/receber<input name="plannedDate" type="date" value="${item.plannedDate || item.dueDate || ""}"></label><label>Status<select name="status" id="status"><option value="pending" ${!paid ? "selected" : ""}>Pendente</option><option value="paid" ${paid ? "selected" : ""}>${type === "income" ? "Recebido" : "Pago"}</option></select></label><label id="paidDateLabel">Data real do pagamento/recebimento<input name="paidDate" type="date" value="${item.paidDate || ""}"></label><label class="full">Observações<textarea name="notes" maxlength="500">${esc(item.notes || "")}</textarea></label><label class="full file-label">Comprovante (imagem ou PDF, até 10 MB)<input name="attachment" type="file" accept="image/jpeg,image/png,image/webp,application/pdf">${item.attachment?.url ? `<a href="${attr(item.attachment.url)}" target="_blank" rel="noopener">Abrir comprovante atual: ${esc(item.attachment.name)}</a>` : ""}</label></div><div class="modal-actions">${item.id ? '<button class="btn btn-danger" type="button" id="deleteRecord">Excluir</button>' : ""}<button class="btn btn-primary" type="submit">Salvar lançamento</button></div></form>`);
+  const recurrenceFields = !item.id ? `<section class="recurrence-card full" id="recurrenceCard">
+    <label class="recurrence-toggle">
+      <input name="recurrenceEnabled" type="checkbox">
+      <span><b>Repetir esta despesa</b><small>Crie os próximos meses de uma só vez.</small></span>
+    </label>
+    <div class="recurrence-options" id="recurrenceOptions" hidden>
+      <label>Total de meses <small>Incluindo o mês atual</small><input name="recurrenceMonths" type="number" min="2" max="60" value="2" inputmode="numeric"></label>
+      <label>Tipo de repetição<select name="recurrenceType"><option value="fixed">Despesa fixa — mesmo nome</option><option value="installment">Parcelamento — numerar parcelas</option></select></label>
+    </div>
+  </section>` : (Number(item.recurrenceTotal) > 1 ? `<div class="recurrence-context full"><b>${item.recurrenceType === "installment" ? "Parcela" : "Despesa recorrente"} ${item.recurrenceIndex} de ${item.recurrenceTotal}</b><small>As alterações afetam somente este lançamento.</small></div>` : "");
+  showModal(`<form class="modal modal-large" id="recordForm"><button class="modal-close" type="button">×</button><span class="eyebrow">${item.id ? "EDITAR" : "NOVO"} LANÇAMENTO</span><h2>${item.id ? esc(item.description) : "Adicionar ao calendário"}</h2><div class="type-toggle"><label><input type="radio" name="type" value="expense" ${type === "expense" ? "checked" : ""}> Débito</label><label><input type="radio" name="type" value="income" ${type === "income" ? "checked" : ""}> Entrada</label></div><div class="form-grid"><label>Descrição<input name="description" value="${attr(item.description || "")}" required maxlength="120"></label><label>Valor<input name="amount" type="number" min="0.01" step="0.01" value="${item.amount || ""}" required></label><label>Categoria<select name="category" id="categorySelect"></select></label><label>Data de vencimento/recebimento<input name="dueDate" type="date" value="${item.dueDate || ""}" required></label><label>Data que deseja pagar/receber<input name="plannedDate" type="date" value="${item.plannedDate || item.dueDate || ""}"></label><label>Status<select name="status" id="status"><option value="pending" ${!paid ? "selected" : ""}>Pendente</option><option value="paid" ${paid ? "selected" : ""}>${type === "income" ? "Recebido" : "Pago"}</option></select></label><label id="paidDateLabel">Data real do pagamento/recebimento<input name="paidDate" type="date" value="${item.paidDate || ""}"></label>${recurrenceFields}<label class="full">Observações<textarea name="notes" maxlength="500">${esc(item.notes || "")}</textarea></label><label class="full file-label">Comprovante (imagem ou PDF, até 10 MB)<input name="attachment" type="file" accept="image/jpeg,image/png,image/webp,application/pdf">${item.attachment?.url ? `<a href="${attr(item.attachment.url)}" target="_blank" rel="noopener">Abrir comprovante atual: ${esc(item.attachment.name)}</a>` : ""}</label></div><div class="modal-actions">${item.id ? '<button class="btn btn-danger" type="button" id="deleteRecord">Excluir</button>' : ""}<button class="btn btn-primary" type="submit">Salvar lançamento</button></div></form>`);
   const form = document.querySelector("#recordForm"); const category = form.querySelector("#categorySelect");
-  const fillCategories = () => { const current = category.value || item.category; category.innerHTML = categories[form.type.value].map((c) => `<option ${c === current ? "selected" : ""}>${c}</option>`).join(""); };
-  form.querySelectorAll('[name="type"]').forEach((i) => i.onchange = fillCategories); fillCategories();
+  const recurrenceCard = form.querySelector("#recurrenceCard");
+  const recurrenceOptions = form.querySelector("#recurrenceOptions");
+  const recurrenceToggle = form.elements.recurrenceEnabled;
+  const submitButton = form.querySelector('button[type="submit"]');
+  const updateRecurrence = () => {
+    if (!recurrenceCard) return;
+    const isExpense = form.type.value === "expense";
+    recurrenceCard.hidden = !isExpense;
+    if (!isExpense) recurrenceToggle.checked = false;
+    const enabled = isExpense && recurrenceToggle.checked;
+    recurrenceOptions.hidden = !enabled;
+    form.elements.recurrenceMonths.required = enabled;
+    submitButton.textContent = enabled ? "Criar lançamentos" : "Salvar lançamento";
+  };
+  const fillCategories = () => {
+    const current = category.value || item.category;
+    category.innerHTML = categories[form.type.value].map((c) => `<option ${c === current ? "selected" : ""}>${c}</option>`).join("");
+    form.status.options[1].textContent = form.type.value === "income" ? "Recebido" : "Pago";
+    updateRecurrence();
+  };
+  form.querySelectorAll('[name="type"]').forEach((i) => i.onchange = fillCategories);
+  if (recurrenceToggle) recurrenceToggle.onchange = updateRecurrence;
+  fillCategories();
   form.status.onchange = () => form.paidDate.required = form.status.value === "paid"; form.status.onchange();
-  form.onsubmit = async (e) => { e.preventDefault(); const button = form.querySelector('button[type="submit"]'); busy(button, true); try { const data = Object.fromEntries(new FormData(form)); delete data.attachment; if (form.attachment.files[0]) data.attachment = await FirebaseService.uploadAttachment(state.selected.id, form.attachment.files[0], state.user.uid); else data.attachment = item.attachment || null; await FirebaseService.saveTransaction(state.selected.id, data, state.user.uid, item.id); closeModal(); if (!item.id) { state.view = "dashboard"; renderApp(); } toast("Lançamento salvo."); } catch (err) { firebaseError(err); busy(button, false); } };
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    busy(button, true);
+    try {
+      const data = Object.fromEntries(new FormData(form));
+      const recurring = !item.id && form.type.value === "expense" && Boolean(form.elements.recurrenceEnabled?.checked);
+      const recurrenceMonths = Number(data.recurrenceMonths);
+      const recurrenceType = data.recurrenceType || "fixed";
+      delete data.recurrenceEnabled;
+      delete data.recurrenceMonths;
+      delete data.recurrenceType;
+      delete data.attachment;
+      if (form.attachment.files[0]) data.attachment = await FirebaseService.uploadAttachment(state.selected.id, form.attachment.files[0], state.user.uid);
+      else data.attachment = item.attachment || null;
+      if (recurring) await FirebaseService.saveRecurringTransactions(state.selected.id, data, state.user.uid, recurrenceMonths, recurrenceType);
+      else await FirebaseService.saveTransaction(state.selected.id, data, state.user.uid, item.id);
+      closeModal();
+      if (!item.id) { state.view = "dashboard"; renderApp(); }
+      toast(recurring ? `${recurrenceMonths} lançamentos criados.` : "Lançamento salvo.");
+    } catch (err) { firebaseError(err); busy(button, false); }
+  };
   document.querySelector("#deleteRecord")?.addEventListener("click", async () => { if (!confirm("Excluir este lançamento?")) return; try { await FirebaseService.deleteTransaction(state.selected.id, item.id); await FirebaseService.deleteAttachment(item.attachment?.path); closeModal(); toast("Lançamento excluído."); } catch (err) { firebaseError(err); } });
 }
 

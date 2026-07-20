@@ -1,11 +1,20 @@
 import { deleteApp, initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
 import { createUserWithEmailAndPassword, deleteUser, getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
-import { addDoc, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, getFirestore, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+import { addDoc, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, getFirestore, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 import { deleteObject, getDownloadURL, getStorage, ref, uploadBytes } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-storage.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 const configured = !Object.values(firebaseConfig).some((value) => String(value).includes("SUBSTITUA") || String(value).includes("SEU_PROJETO"));
 let services;
+
+function shiftDateByMonths(value, offset) {
+  if (!value) return "";
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return value;
+  const target = new Date(Date.UTC(year, month - 1 + offset, 1));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, "0")}-${String(Math.min(day, lastDay)).padStart(2, "0")}`;
+}
 
 function useServices() {
   if (!configured) throw new Error("Firebase não configurado. Preencha assets/js/firebase-config.js.");
@@ -60,6 +69,40 @@ export const FirebaseService = {
     const payload = { ...data, amount: Number(data.amount), updatedAt: serverTimestamp(), updatedBy: uid };
     if (id) return updateDoc(doc(useServices().db, "managements", managementId, "transactions", id), payload);
     return addDoc(collection(useServices().db, "managements", managementId, "transactions"), { ...payload, createdAt: serverTimestamp(), createdBy: uid });
+  },
+  async saveRecurringTransactions(managementId, data, uid, months, recurrenceType = "fixed") {
+    const total = Math.max(2, Math.min(60, Number.parseInt(months, 10) || 2));
+    const db = useServices().db;
+    const transactions = collection(db, "managements", managementId, "transactions");
+    const batch = writeBatch(db);
+    const groupId = globalThis.crypto?.randomUUID?.() || `${uid}-${Date.now()}`;
+
+    for (let offset = 0; offset < total; offset += 1) {
+      const sequence = offset + 1;
+      const transactionRef = doc(transactions);
+      const description = recurrenceType === "installment" ? `${data.description} (${sequence}/${total})` : data.description;
+      batch.set(transactionRef, {
+        ...data,
+        description,
+        amount: Number(data.amount),
+        dueDate: shiftDateByMonths(data.dueDate, offset),
+        plannedDate: shiftDateByMonths(data.plannedDate, offset),
+        status: offset === 0 ? data.status : "pending",
+        paidDate: offset === 0 ? data.paidDate : "",
+        attachment: offset === 0 ? (data.attachment || null) : null,
+        recurrenceGroupId: groupId,
+        recurrenceIndex: sequence,
+        recurrenceTotal: total,
+        recurrenceType,
+        createdAt: serverTimestamp(),
+        createdBy: uid,
+        updatedAt: serverTimestamp(),
+        updatedBy: uid
+      });
+    }
+
+    await batch.commit();
+    return { count: total, groupId };
   },
   deleteTransaction(managementId, id) { return deleteDoc(doc(useServices().db, "managements", managementId, "transactions", id)); },
   async uploadAttachment(managementId, file, uid) {
