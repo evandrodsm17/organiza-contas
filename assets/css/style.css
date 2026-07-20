@@ -2765,3 +2765,123 @@ html[data-theme="dark"] .recurrence-options {
     gap: 4px;
   }
 }
+
+/* Navegação e calendário mobile mais legíveis */
+.mobile-logout {
+  display: none;
+}
+
+.weekdays,
+.calendar {
+  min-width: 840px;
+}
+
+.day {
+  min-height: 150px;
+}
+
+.day-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-content: stretch;
+  gap: 3px;
+  padding: 6px 7px;
+}
+
+.day-item > span {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.day-item > strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+  line-height: 1.2;
+  opacity: 0.86;
+}
+
+@media (max-width: 760px) {
+  .workspace-title {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 12px;
+    width: 100%;
+    align-items: start;
+  }
+
+  .workspace-title > .mobile-brand,
+  .workspace-title > h1,
+  .workspace-title > p {
+    grid-column: 1;
+  }
+
+  .workspace-title > h1 {
+    grid-row: 2;
+  }
+
+  .workspace-title > p {
+    grid-row: 3;
+  }
+
+  .mobile-logout {
+    display: flex;
+    grid-column: 2;
+    grid-row: 1 / 4;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 42px;
+    padding: 0 13px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 650;
+  }
+
+  .mobile-logout .ui-icon {
+    width: 17px;
+    height: 17px;
+  }
+
+  .mobile-new-record {
+    gap: 0;
+  }
+
+  .mobile-new-record .ui-icon {
+    width: 27px;
+    height: 27px;
+  }
+
+  .calendar-panel {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .weekdays,
+  .calendar {
+    min-width: 840px;
+    grid-template-columns: repeat(7, minmax(120px, 1fr));
+  }
+
+  .day-item {
+    font-size: 10px;
+  }
+}
+
+html[data-theme="dark"] .mobile-logout {
+  border-color: var(--line);
+  background: var(--surface-raised);
+  color: var(--ink);
+}
