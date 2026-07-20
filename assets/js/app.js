@@ -6,6 +6,7 @@ const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL
 const dateLabel = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", timeZone: "UTC" });
 const state = { user: null, profile: null, managements: [], selected: null, transactions: [], month: new Date().toISOString().slice(0, 7), view: "dashboard", users: [] };
 let stopManagements = () => {}, stopTransactions = () => {}, stopUsers = () => {};
+document.documentElement.dataset.theme = localStorage.getItem("organiza-theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
 
 const categories = {
   expense: ["Cartão", "Água", "Energia", "Celular", "Internet", "Alimentação", "Moradia", "Transporte", "Saúde", "Educação", "Lazer", "Impostos", "Outros"],
@@ -25,13 +26,14 @@ FirebaseService.observeAuth(async (user) => {
 function cleanupObservers() { stopManagements(); stopTransactions(); stopUsers(); stopManagements = stopTransactions = stopUsers = () => {}; }
 
 function renderPublic(showLogin = false) {
-  app.innerHTML = `<header class="public-header"><a class="brand" href="#"><span class="brand-mark">O</span><span>OrganizaContas</span></a><button class="btn btn-ghost" id="loginOpen">Entrar</button></header>
+  app.innerHTML = `<header class="public-header"><a class="brand" href="#"><span class="brand-mark">O</span><span>OrganizaContas</span></a><div class="public-actions">${themeButton()}<button class="btn btn-ghost" id="loginOpen">Entrar</button></div></header>
   <main><section class="hero"><div class="hero-copy"><span class="eyebrow">FINANÇAS EM CONJUNTO</span><h1>As contas do mês,<br><em>claras para todos.</em></h1><p>Organize receitas, vencimentos, pagamentos e comprovantes em um calendário compartilhado com quem cuida das finanças com você.</p><button class="btn btn-primary" id="heroLogin">Acessar meu espaço <span>→</span></button><div class="hero-points"><span>✓ Calendário mensal</span><span>✓ Acesso compartilhado</span><span>✓ Comprovantes seguros</span></div></div>
   <div class="hero-visual"><div class="mock-card"><div class="mock-head"><span>Resumo de julho</span><b>${money.format(5280)}</b></div><div class="mock-progress"><i></i></div><div class="mock-row"><span class="cat-icon orange">⚡</span><div><b>Energia</b><small>Vence dia 12</small></div><strong>${money.format(219.4)}</strong></div><div class="mock-row"><span class="cat-icon green">↗</span><div><b>Salário</b><small>Recebido dia 05</small></div><strong class="positive">+ ${money.format(4800)}</strong></div><div class="mock-row"><span class="cat-icon blue">▣</span><div><b>Internet</b><small>Pago antecipado</small></div><span class="pill paid">Pago</span></div></div></div></section>
   <section class="how"><span class="eyebrow">COMO FUNCIONA</span><h2>Do vencimento ao comprovante</h2><div class="feature-grid">${feature("01", "Crie seu espaço", "Separe as finanças da casa, de uma viagem ou de qualquer planejamento compartilhado.")}${feature("02", "Registre tudo", "Adicione entradas e débitos com vencimento, data planejada e categorias personalizadas.")}${feature("03", "Compartilhe", "Convide outra pessoa para consultar, incluir e atualizar os mesmos registros.")}${feature("04", "Confirme o pagamento", "Informe a data real e anexe imagem ou PDF do comprovante quando precisar.")}</div></section></main>
   <footer>OrganizaContas · Organização financeira sem complicação</footer>${showLogin ? loginModal() : ""}`;
   document.querySelector("#loginOpen").onclick = () => renderPublic(true);
   document.querySelector("#heroLogin").onclick = () => renderPublic(true);
+  document.querySelector("#themeToggle").onclick = toggleTheme;
   bindLogin();
 }
 
@@ -59,20 +61,20 @@ function observeTransactions() {
 
 function renderApp() {
   const monthName = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${state.month}-01T12:00:00Z`));
-  app.innerHTML = `<div class="app-shell"><aside><a class="brand brand-light" href="#"><span class="brand-mark">O</span><span>OrganizaContas</span></a><div class="profile"><span>${initials(state.profile.name)}</span><div><b>${esc(state.profile.name)}</b><small>${state.profile.role === "master" ? "Administrador master" : "Usuário"}</small></div></div><nav>${nav("dashboard", "⌂", "Visão geral")}${nav("calendar", "□", "Calendário")}${nav("records", "≡", "Lançamentos")}${state.profile.role === "master" ? nav("users", "♙", "Usuários") : ""}</nav><button class="logout" id="logout">↪ Sair</button></aside>
-  <main class="workspace"><header class="workspace-head"><div><span class="mobile-brand">OrganizaContas</span><h1>${viewTitle()}</h1><p>${state.selected ? esc(state.selected.name) : "Crie seu primeiro gerenciamento"}</p></div><div class="head-actions">${managementSelect()}${isOwner() ? '<button class="btn btn-soft" id="shareBtn">Compartilhar</button>' : ""}<button class="btn btn-primary" id="newRecord" ${!canEdit() ? "disabled" : ""}>+ Novo lançamento</button></div></header>
+  app.innerHTML = `<div class="app-shell"><aside><a class="brand brand-light" href="#"><span class="brand-mark">O</span><span>OrganizaContas</span></a><div class="profile"><span>${initials(state.profile.name)}</span><div><b>${esc(state.profile.name)}</b><small>${state.profile.role === "master" ? "Administrador master" : "Usuário"}</small></div></div><nav>${nav("dashboard", "home", "Visão geral")}${nav("calendar", "calendar", "Calendário")}<button class="mobile-new-record" id="mobileNewRecord" aria-label="Criar novo lançamento" ${!canEdit() ? "disabled" : ""}>${icon("plus")}<small>Novo</small></button>${nav("records", "list", "Lançamentos")}${state.profile.role === "master" ? nav("users", "users", "Usuários") : ""}</nav><button class="logout" id="logout">${icon("logout")} Sair</button></aside>
+  <main class="workspace"><header class="workspace-head"><div><span class="mobile-brand">OrganizaContas</span><h1>${viewTitle()}</h1><p>${state.selected ? esc(state.selected.name) : "Crie seu primeiro gerenciamento"}</p></div><div class="head-actions">${managementSelect()}${isOwner() ? `<button class="btn btn-soft" id="shareBtn">${icon("share")}<span>Compartilhar</span></button>` : ""}<button class="btn btn-primary" id="newRecord" ${!canEdit() ? "disabled" : ""}>${icon("plus")}<span>Novo lançamento</span></button>${themeButton()}</div></header>
   ${state.view === "users" ? renderUsers() : state.view === "calendar" ? renderCalendar(monthName) : state.view === "records" ? renderRecords(monthName) : renderDashboard(monthName)}</main></div><div id="modalRoot"></div>`;
   bindShell();
 }
 
-function nav(id, icon, label) { return `<button class="nav-item ${state.view === id ? "active" : ""}" data-view="${id}"><span>${icon}</span>${label}</button>`; }
+function nav(id, iconName, label) { return `<button class="nav-item ${state.view === id ? "active" : ""}" data-view="${id}">${icon(iconName)}<small>${label}</small></button>`; }
 function viewTitle() { return ({ dashboard: "Visão geral", calendar: "Calendário financeiro", records: "Lançamentos", users: "Gestão de usuários" })[state.view]; }
 function managementSelect() { return `<select id="managementSelect"><option value="">${state.managements.length ? "Selecionar gerenciamento" : "Nenhum gerenciamento"}</option>${state.managements.map((item) => `<option value="${item.id}" ${state.selected?.id === item.id ? "selected" : ""}>${esc(item.name)}</option>`).join("")}</select>${canEdit() ? '<button class="icon-btn" id="editManagement" title="Editar gerenciamento" aria-label="Editar gerenciamento">✎</button>' : ""}${state.profile.canCreateManagement || state.profile.role === "master" ? '<button class="icon-btn" id="newManagement" title="Novo gerenciamento" aria-label="Novo gerenciamento">+</button>' : ""}`; }
 
 function monthTransactions() { return state.transactions.filter((item) => (item.dueDate || item.plannedDate || "").startsWith(state.month)); }
 function totals() { const list = monthTransactions(); return { income: sum(list.filter((i) => i.type === "income")), expense: sum(list.filter((i) => i.type === "expense")), paid: sum(list.filter((i) => i.type === "expense" && i.status === "paid")), pending: sum(list.filter((i) => i.type === "expense" && i.status !== "paid")) }; }
 function sum(items) { return items.reduce((acc, item) => acc + Number(item.amount || 0), 0); }
-function monthControl(name) { return `<div class="month-control"><button data-month="-1">‹</button><strong>${name}</strong><button data-month="1">›</button></div>`; }
+function monthControl() { return `<div class="month-control"><button class="month-arrow" data-month="-1" aria-label="Mês anterior" title="Mês anterior">${icon("chevron-left")}</button><label class="month-field"><span>Período</span><input id="monthInput" type="month" value="${state.month}" aria-label="Escolher mês e ano"></label><button class="month-arrow" data-month="1" aria-label="Próximo mês" title="Próximo mês">${icon("chevron-right")}</button><button class="month-today" id="monthToday" type="button">Hoje</button></div>`; }
 
 function renderDashboard(monthName) {
   if (!state.selected) return emptyManagement(); const total = totals(); const list = monthTransactions().slice(0, 6);
@@ -96,13 +98,16 @@ function empty(text) { return `<div class="empty-inline">${text}</div>`; }
 
 function bindShell() {
   document.querySelector("#logout").onclick = () => FirebaseService.logout();
+  document.querySelector("#themeToggle").onclick = toggleTheme;
   document.querySelectorAll("[data-view]").forEach((button) => button.onclick = () => { state.view = button.dataset.view; if (state.view === "users") observeUsers(); renderApp(); });
   document.querySelectorAll("[data-go]").forEach((button) => button.onclick = () => { state.view = button.dataset.go; renderApp(); });
   document.querySelector("#managementSelect").onchange = (e) => { state.selected = state.managements.find((i) => i.id === e.target.value) || null; observeTransactions(); renderApp(); };
   document.querySelector("#newManagement")?.addEventListener("click", () => openManagementModal()); document.querySelector("#editManagement")?.addEventListener("click", () => openManagementModal(state.selected)); document.querySelector("#emptyCreate")?.addEventListener("click", () => openManagementModal());
-  document.querySelector("#newRecord")?.addEventListener("click", () => { if (canEdit()) openRecordModal(); }); document.querySelector("#shareBtn")?.addEventListener("click", openShareModal);
+  document.querySelector("#newRecord")?.addEventListener("click", () => { if (canEdit()) openRecordModal(); }); document.querySelector("#mobileNewRecord")?.addEventListener("click", () => { if (canEdit()) openRecordModal(); }); document.querySelector("#shareBtn")?.addEventListener("click", openShareModal);
   document.querySelector("#createUser")?.addEventListener("click", openUserModal);
   document.querySelectorAll("[data-month]").forEach((b) => b.onclick = () => { const [y, m] = state.month.split("-").map(Number); const d = new Date(Date.UTC(y, m - 1 + Number(b.dataset.month), 1)); state.month = d.toISOString().slice(0, 7); renderApp(); });
+  document.querySelector("#monthInput")?.addEventListener("change", (event) => { if (event.target.value) { state.month = event.target.value; renderApp(); } });
+  document.querySelector("#monthToday")?.addEventListener("click", () => { state.month = new Date().toISOString().slice(0, 7); renderApp(); });
   document.querySelectorAll("[data-edit]").forEach((b) => b.onclick = () => { const item = state.transactions.find((i) => i.id === b.dataset.edit); if (canEdit()) openRecordModal(item); else openRecordDetails(item); });
   document.querySelectorAll("[data-access]").forEach((input) => input.onchange = async () => { try { await FirebaseService.setUserAccess(input.dataset.access, { [input.dataset.field]: input.checked }); toast("Permissão atualizada."); } catch (e) { input.checked = !input.checked; firebaseError(e); } });
 }
@@ -135,5 +140,9 @@ function toast(message, type = "success") { const el = document.createElement("d
 function firebaseError(error) { console.error(error); toast(error?.message || "Não foi possível concluir a operação.", "danger"); }
 function formatDate(value) { return value ? dateLabel.format(new Date(`${value}T12:00:00Z`)) : "Sem data"; }
 function initials(name = "") { return name.split(" ").slice(0, 2).map((p) => p[0]).join("").toUpperCase() || "U"; }
+function toggleTheme() { const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark"; document.documentElement.dataset.theme = next; localStorage.setItem("organiza-theme", next); renderCurrentSurface(); }
+function renderCurrentSurface() { state.user ? renderApp() : renderPublic(Boolean(document.querySelector("#loginForm"))); }
+function themeButton() { const dark = document.documentElement.dataset.theme === "dark"; return `<button class="theme-toggle" id="themeToggle" type="button" aria-label="Ativar modo ${dark ? "claro" : "escuro"}" title="Modo ${dark ? "claro" : "escuro"}">${icon(dark ? "sun" : "moon")}</button>`; }
+function icon(name) { const paths = { home:'<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9 20v-6h6v6"/>', calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>', list:'<path d="M9 6h12M9 12h12M9 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>', users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>', plus:'<path d="M12 5v14M5 12h14"/>', logout:'<path d="M10 17l5-5-5-5M15 12H3"/><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>', share:'<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/>', moon:'<path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/>', sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/>', 'chevron-left':'<path d="m15 18-6-6 6-6"/>', 'chevron-right':'<path d="m9 18 6-6-6-6"/>' }; return `<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">${paths[name] || ""}</svg>`; }
 function esc(value = "") { return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }
 const attr = esc;
