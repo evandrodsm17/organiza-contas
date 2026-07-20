@@ -1,5 +1,5 @@
 import { deleteApp, initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-import { createUserWithEmailAndPassword, deleteUser, getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+import { createUserWithEmailAndPassword, deleteUser, getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
 import { addDoc, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, getFirestore, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 import { deleteObject, getDownloadURL, getStorage, ref, uploadBytes } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-storage.js";
 import { firebaseConfig } from "./firebase-config.js";
@@ -25,6 +25,12 @@ export const FirebaseService = {
     return onAuthStateChanged(useServices().auth, callback);
   },
   login: (email, password) => signInWithEmailAndPassword(useServices().auth, email.trim(), password),
+  loginWithGoogle() {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+    useServices().auth.useDeviceLanguage();
+    return signInWithPopup(useServices().auth, provider);
+  },
   logout: () => signOut(useServices().auth),
   async profile(uid) {
     const snap = await getDoc(doc(useServices().db, "users", uid));
