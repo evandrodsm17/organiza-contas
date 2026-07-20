@@ -2545,6 +2545,13 @@ html[data-theme="dark"] .day-item.income-received {
 }
 
 /* Seleção mobile simples: somente mudança de fundo */
+.nav-item.active {
+  border: 0;
+  box-shadow: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
 @media (max-width: 760px) {
   .nav-item.active {
     border: 0;
