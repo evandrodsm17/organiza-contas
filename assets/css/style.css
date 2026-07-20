@@ -2543,3 +2543,27 @@ html[data-theme="dark"] .day-item.income-received {
     margin-inline: auto;
   }
 }
+
+/* Seleção mobile simples: somente mudança de fundo */
+@media (max-width: 760px) {
+  .nav-item.active {
+    border: 0;
+    box-shadow: none;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+  }
+
+  .type-toggle label:has(input:checked) {
+    border-color: transparent;
+    box-shadow: none;
+    background: #e8efff;
+    color: #294bbb;
+  }
+
+  html[data-theme="dark"] .type-toggle label:has(input:checked) {
+    border-color: transparent;
+    box-shadow: none;
+    background: #252b38;
+    color: #b8c9f5;
+  }
+}
