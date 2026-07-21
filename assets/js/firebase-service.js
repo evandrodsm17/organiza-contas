@@ -1,6 +1,6 @@
 import { deleteApp, initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
 import { createUserWithEmailAndPassword, deleteUser, getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
-import { addDoc, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, getFirestore, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+import { addDoc, arrayUnion, collection, deleteDoc, deleteField, doc, getDoc, getDocs, getFirestore, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 import { deleteObject, getDownloadURL, getStorage, ref, uploadBytes } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-storage.js";
 import { firebaseConfig } from "./firebase-config.js";
 
@@ -59,6 +59,13 @@ export const FirebaseService = {
   },
   updateManagement(id, data) {
     return updateDoc(doc(useServices().db, "managements", id), { ...data, updatedAt: serverTimestamp() });
+  },
+  setMonthlyExpenseLimit(managementId, month, amount) {
+    const value = Number(amount);
+    return updateDoc(doc(useServices().db, "managements", managementId), {
+      [`monthlyExpenseLimits.${month}`]: value > 0 ? value : deleteField(),
+      updatedAt: serverTimestamp()
+    });
   },
   deleteManagement(id) { return deleteDoc(doc(useServices().db, "managements", id)); },
   observeTransactions(managementId, callback, onError) {
