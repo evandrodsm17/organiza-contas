@@ -80,9 +80,22 @@ function sum(items) { return items.reduce((acc, item) => acc + Number(item.amoun
 function monthControl() { return `<div class="month-control"><button class="month-arrow" data-month="-1" aria-label="Mês anterior" title="Mês anterior">${icon("chevron-left")}</button><label class="month-field"><span>Período</span><input id="monthInput" type="month" value="${state.month}" aria-label="Escolher mês e ano"></label><button class="month-arrow" data-month="1" aria-label="Próximo mês" title="Próximo mês">${icon("chevron-right")}</button><button class="month-today" id="monthToday" type="button">Hoje</button></div>`; }
 
 function renderDashboard(monthName) {
-  if (!state.selected) return emptyManagement(); const total = totals(); const list = monthTransactions().slice(0, 6);
+  if (!state.selected) return emptyManagement(); const total = totals(); const list = monthTransactions();
   const dueToday = state.transactions.filter((item) => item.type === "expense" && item.status !== "paid" && item.dueDate === todayKey());
-  return `<div class="content-head">${monthControl(monthName)}<span>${monthTransactions().length} lançamentos no período</span></div>${dueToday.length ? renderTodayAlert(dueToday) : ""}<section class="summary-grid">${summary("Entradas", total.income, "success", "↗", "income")}${summary("Despesas", total.expense, "danger", "↘", "expense")}${summary("Pago", total.paid, "info", "✓", "paid")}${summary("Saldo previsto", total.income - total.expense, total.income - total.expense >= 0 ? "success" : "danger", "=")}</section><section class="dashboard-grid">${renderBudgetScore(total.expense)}<article class="panel upcoming-panel"><div class="panel-head"><div><h2>Próximos lançamentos</h2><p>Vencimentos e recebimentos deste mês</p></div><button class="text-btn" data-go="calendar" data-layout="agenda">Ver na agenda</button></div>${list.length ? `<div class="record-list">${list.map(recordRow).join("")}</div>` : empty("Nenhum lançamento neste mês.")}</article><article class="panel status-panel"><div class="panel-head"><div><h2>Situação das despesas</h2><p>Acompanhamento do mês</p></div></div><div class="donut" style="--paid:${total.expense ? Math.round(total.paid / total.expense * 100) : 0}"><div><b>${total.expense ? Math.round(total.paid / total.expense * 100) : 0}%</b><span>pago</span></div></div><div class="legend"><span><i class="dot blue"></i>Pago <b>${money.format(total.paid)}</b></span><span><i class="dot orange"></i>Pendente <b>${money.format(total.pending)}</b></span></div></article></section>`;
+  return `<div class="content-head">${monthControl(monthName)}<span>${monthTransactions().length} lançamentos no período</span></div>${dueToday.length ? renderTodayAlert(dueToday) : ""}<section class="summary-grid">${summary("Entradas", total.income, "success", "↗", "income")}${summary("Despesas", total.expense, "danger", "↘", "expense")}${summary("Pago", total.paid, "info", "✓", "paid")}${summary("Saldo previsto", total.income - total.expense, total.income - total.expense >= 0 ? "success" : "danger", "=")}</section><section class="dashboard-grid">${renderBudgetScore(total.expense)}<article class="panel upcoming-panel"><div class="panel-head"><div><h2>Lançamentos do período</h2><p>Organizados em relação à data de hoje</p></div><button class="text-btn" data-go="calendar" data-layout="agenda">Ver na agenda</button></div>${list.length ? renderDashboardGroups(list) : empty("Nenhum lançamento neste mês.")}</article><article class="panel status-panel"><div class="panel-head"><div><h2>Situação das despesas</h2><p>Acompanhamento do mês</p></div></div><div class="donut" style="--paid:${total.expense ? Math.round(total.paid / total.expense * 100) : 0}"><div><b>${total.expense ? Math.round(total.paid / total.expense * 100) : 0}%</b><span>pago</span></div></div><div class="legend"><span><i class="dot blue"></i>Pago <b>${money.format(total.paid)}</b></span><span><i class="dot orange"></i>Pendente <b>${money.format(total.pending)}</b></span></div></article></section>`;
+}
+function renderDashboardGroups(items) {
+  const today = todayKey();
+  const dateOf = (item) => item.dueDate || item.plannedDate || "";
+  const upcoming = items.filter((item) => dateOf(item) >= today).sort((a, b) => dateOf(a).localeCompare(dateOf(b)));
+  const previous = items.filter((item) => dateOf(item) < today).sort((a, b) => dateOf(b).localeCompare(dateOf(a)));
+  const upcomingVisible = upcoming.slice(0, previous.length ? 4 : 7);
+  const previousVisible = previous.slice(0, upcoming.length ? 3 : 7);
+  return `<div class="dashboard-record-groups">${upcoming.length ? dashboardRecordGroup("Hoje e próximos", "Vencimentos e recebimentos a partir de hoje", "upcoming", upcomingVisible, upcoming.length) : ""}${previous.length ? dashboardRecordGroup("Datas anteriores", "Lançamentos mais recentes primeiro", "previous", previousVisible, previous.length) : ""}</div>`;
+}
+function dashboardRecordGroup(title, description, tone, items, total) {
+  const counter = items.length < total ? `${items.length} de ${total}` : total;
+  return `<section class="dashboard-record-group ${tone}"><header><div><span aria-hidden="true"></span><div><b>${title}</b><small>${description}</small></div></div><strong>${counter}</strong></header><div class="record-list">${items.map(recordRow).join("")}</div></section>`;
 }
 function expenseLimitForMonth() { return Number(state.selected?.monthlyExpenseLimits?.[state.month] || 0); }
 function renderBudgetScore(expense) {
@@ -167,7 +180,7 @@ function emptyManagement() { return `<section class="empty-state"><div>◫</div>
 function empty(text) { return `<div class="empty-inline">${text}</div>`; }
 
 function bindShell() {
-  document.querySelectorAll("#logout, #mobileNavLogout").forEach((button) => button.onclick = () => FirebaseService.logout());
+  document.querySelectorAll("#logout, #mobileNavLogout").forEach((button) => button.onclick = openLogoutModal);
   document.querySelector("#themeToggle")?.addEventListener("click", toggleTheme);
   document.querySelectorAll("[data-view]").forEach((button) => button.onclick = () => { state.view = button.dataset.view; if (state.view === "users") observeUsers(); renderApp(); });
   document.querySelectorAll("[data-go]").forEach((button) => button.onclick = () => { state.view = button.dataset.go; if (button.dataset.layout) { state.calendarLayout = button.dataset.layout; localStorage.setItem("organiza-calendar-layout", state.calendarLayout); } if (state.view === "users") observeUsers(); renderApp(); });
@@ -336,6 +349,18 @@ function openRecordModal(item = {}) {
       toast(count > 1 ? `${count} lançamentos excluídos.` : "Lançamento excluído.");
     } catch (err) { firebaseError(err); busy(button, false); }
   });
+}
+
+function openLogoutModal() {
+  showModal(`<article class="modal logout-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="logoutConfirmTitle"><button class="modal-close" type="button" aria-label="Fechar">×</button><span class="logout-confirm-icon" aria-hidden="true">${icon("logout")}</span><span class="eyebrow">CONFIRMAR SAÍDA</span><h2 id="logoutConfirmTitle">Deseja realmente sair?</h2><p>Sua sessão será encerrada e será necessário entrar novamente para acessar seus gerenciamentos.</p><div class="modal-actions"><button class="btn btn-soft" id="cancelLogout" type="button">Continuar conectado</button><button class="btn btn-danger" id="confirmLogout" type="button">Sair da conta</button></div></article>`);
+  const cancelButton = document.querySelector("#cancelLogout");
+  cancelButton.onclick = closeModal;
+  cancelButton.focus();
+  document.querySelector("#confirmLogout").onclick = async (event) => {
+    const button = event.currentTarget; busy(button, true);
+    try { await FirebaseService.logout(); }
+    catch (error) { firebaseError(error); busy(button, false); }
+  };
 }
 
 function showModal(html) { document.querySelector("#modalRoot").innerHTML = `<div class="modal-backdrop">${html}</div>`; document.querySelector(".modal-close").onclick = closeModal; }

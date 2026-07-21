@@ -4020,3 +4020,164 @@ html[data-theme="dark"] .recurrence-scope label {
     flex-wrap: wrap;
   }
 }
+
+/* Agrupamento temporal da visão geral e confirmação de logout */
+.dashboard-record-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.dashboard-record-group + .dashboard-record-group {
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.dashboard-record-group > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0 8px;
+}
+
+.dashboard-record-group > header > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+
+.dashboard-record-group > header > div > span {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border-radius: 50%;
+  background: #3157d5;
+}
+
+.dashboard-record-group.previous > header > div > span {
+  background: #8792a2;
+}
+
+.dashboard-record-group > header > div > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.dashboard-record-group > header b {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dashboard-record-group > header small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-record-group > header > strong {
+  min-width: 30px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.logout-confirm-modal {
+  width: min(430px, 100%);
+  text-align: center;
+}
+
+.logout-confirm-icon {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  clear: both;
+  margin: 12px auto 18px;
+  place-items: center;
+  border-radius: 16px;
+  background: var(--status-danger-bg);
+  color: var(--status-danger);
+}
+
+.logout-confirm-icon .ui-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.logout-confirm-modal .eyebrow {
+  display: block;
+}
+
+.logout-confirm-modal h2 {
+  margin: 8px 0;
+  padding: 0;
+}
+
+.logout-confirm-modal > p {
+  max-width: 350px;
+  margin: 0 auto;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.logout-confirm-modal .modal-actions {
+  justify-content: center;
+}
+
+.logout-confirm-modal .modal-actions .btn {
+  min-width: 145px;
+}
+
+html[data-theme="dark"] .logout-confirm-modal .btn-danger {
+  background: var(--status-danger-bg);
+  color: var(--status-danger);
+}
+
+@media (max-width: 760px) {
+  .dashboard-record-groups {
+    gap: 16px;
+  }
+
+  .dashboard-record-group + .dashboard-record-group {
+    padding-top: 16px;
+  }
+
+  .dashboard-record-group > header small {
+    max-width: 220px;
+  }
+
+  .logout-confirm-modal h2 {
+    padding: 0;
+    text-align: center;
+  }
+
+  .logout-confirm-modal .modal-actions {
+    position: static;
+    margin: 24px 0 0;
+    padding: 18px 0 0;
+    flex-direction: column;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .logout-confirm-modal .modal-actions .btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 390px) {
+  .dashboard-record-group > header small {
+    max-width: 180px;
+  }
+}
