@@ -4,7 +4,7 @@ const app = document.querySelector("#app");
 const toastArea = document.querySelector("#toastArea");
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const dateLabel = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", timeZone: "UTC" });
-const state = { user: null, profile: null, managements: [], selected: null, transactions: [], month: new Date().toISOString().slice(0, 7), view: "dashboard", users: [] };
+const state = { user: null, profile: null, managements: [], selected: null, transactions: [], month: new Date().toISOString().slice(0, 7), view: "dashboard", calendarLayout: localStorage.getItem("organiza-calendar-layout") || (matchMedia("(max-width: 760px)").matches ? "agenda" : "grid"), users: [] };
 let stopManagements = () => {}, stopTransactions = () => {}, stopUsers = () => {};
 document.documentElement.dataset.theme = localStorage.getItem("organiza-theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
 
@@ -116,10 +116,43 @@ function recordRow(item) {
 function renderRecords(monthName) { const list = monthTransactions(); return `<div class="content-head">${monthControl(monthName)}<span>${list.length} registros no período</span></div><article class="panel"><div class="panel-head"><div><h2>Lançamentos do mês</h2><p>${canEdit() ? "Clique em um registro para editar, pagar ou anexar comprovante." : "Você possui acesso somente para consulta."}</p></div></div>${list.length ? `<div class="record-list">${list.map(recordRow).join("")}</div>` : empty("Nenhum lançamento cadastrado.")}</article>`; }
 
 function renderCalendar(monthName) {
+  if (!state.selected) return emptyManagement();
+  if (state.calendarLayout === "agenda") return renderCalendarAgenda(monthName);
   const [year, month] = state.month.split("-").map(Number); const first = new Date(Date.UTC(year, month - 1, 1)); const days = new Date(Date.UTC(year, month, 0)).getUTCDate(); const blanks = first.getUTCDay();
   const cells = Array.from({ length: blanks }, () => '<div class="day muted"></div>');
   for (let day = 1; day <= days; day++) { const date = `${state.month}-${String(day).padStart(2, "0")}`; const items = state.transactions.filter((i) => i.dueDate === date); cells.push(`<div class="day"><b>${day}</b>${items.slice(0, 3).map((i) => `<button data-edit="${i.id}" class="day-item ${calendarStatus(i)}" title="${attr(i.description)}"><span>${i.status === "paid" ? '<i class="paid-check">✓</i>' : ""}${esc(i.description)}</span><strong>${money.format(i.amount)}</strong></button>`).join("")}${items.length > 3 ? `<small>+${items.length - 3} outros</small>` : ""}</div>`); }
-  return `<div class="content-head">${monthControl(monthName)}<span>Datas exibidas pelo vencimento</span></div><article class="panel calendar-panel"><div class="weekdays">${["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((d) => `<span>${d}</span>`).join("")}</div><div class="calendar">${cells.join("")}</div></article>`;
+  return `${calendarHeader()}<article class="panel calendar-panel"><div class="weekdays">${["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((d) => `<span>${d}</span>`).join("")}</div><div class="calendar">${cells.join("")}</div></article>`;
+}
+
+function calendarHeader() {
+  return `<div class="content-head calendar-content-head">${monthControl()}<div class="calendar-layout-switch" role="group" aria-label="Formato de visualização"><button type="button" data-calendar-layout="grid" class="${state.calendarLayout === "grid" ? "active" : ""}" aria-pressed="${state.calendarLayout === "grid"}">${icon("calendar")}<span>Calendário</span></button><button type="button" data-calendar-layout="agenda" class="${state.calendarLayout === "agenda" ? "active" : ""}" aria-pressed="${state.calendarLayout === "agenda"}">${icon("list")}<span>Agenda</span></button></div></div>`;
+}
+
+function renderCalendarAgenda() {
+  const items = monthTransactions().slice().sort((a, b) =>
+    String(a.dueDate || "").localeCompare(String(b.dueDate || "")) ||
+    String(a.description || "").localeCompare(String(b.description || ""), "pt-BR"),
+  );
+  const groups = items.reduce((acc, item) => {
+    const key = item.dueDate || `${state.month}-01`;
+    (acc[key] ||= []).push(item);
+    return acc;
+  }, {});
+  const content = Object.entries(groups).map(([date, dayItems]) => agendaDay(date, dayItems)).join("");
+  return `${calendarHeader()}<article class="panel agenda-panel">${content || empty("Nenhum lançamento cadastrado neste mês.")}</article>`;
+}
+
+function agendaDay(date, items) {
+  const parsed = new Date(`${date}T12:00:00Z`);
+  const weekday = new Intl.DateTimeFormat("pt-BR", { weekday: "long", timeZone: "UTC" }).format(parsed);
+  const monthDay = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "long", timeZone: "UTC" }).format(parsed);
+  const isToday = date === todayKey();
+  return `<section class="agenda-day ${isToday ? "today" : ""}"><header><span class="agenda-date-number">${parsed.getUTCDate()}</span><div><b>${isToday ? "Hoje" : esc(weekday)}</b><small>${esc(monthDay)}</small></div><span>${items.length} ${items.length === 1 ? "lançamento" : "lançamentos"}</span></header><div class="agenda-items">${items.map(agendaItem).join("")}</div></section>`;
+}
+
+function agendaItem(item) {
+  const status = financialStatus(item);
+  return `<button type="button" class="agenda-item" data-edit="${item.id}"><span class="cat-icon ${item.type === "income" ? "income-icon" : "expense-icon"}">${item.type === "income" ? "↗" : "↘"}</span><span class="agenda-item-copy"><b>${esc(item.description)}</b><small>${esc(item.category)}${Number(item.recurrenceTotal) > 1 ? ` · ${item.recurrenceType === "installment" ? "Parcela" : "Recorrente"} ${item.recurrenceIndex}/${item.recurrenceTotal}` : ""}</small></span><span class="agenda-item-value"><b class="${item.type === "income" ? "positive" : ""}">${item.type === "income" ? "+ " : ""}${money.format(item.amount)}</b><span class="pill ${status.className}">${status.label}</span></span></button>`;
 }
 
 function renderUsers() { if (state.profile.role !== "master") return ""; return `<div class="content-head"><div><strong>Usuários autorizados</strong><span>Somente o master pode criar e alterar acessos.</span></div><button class="btn btn-primary" id="createUser">+ Criar usuário</button></div><article class="panel"><div class="user-list">${state.users.map((u) => `<div class="user-row"><span>${initials(u.name)}</span><div><b>${esc(u.name)}</b><small>${esc(u.email)}</small></div><label class="switch"><input type="checkbox" data-access="${u.id}" data-field="canCreateManagement" ${u.canCreateManagement ? "checked" : ""} ${u.role === "master" ? "disabled" : ""}><i></i> Pode criar gerenciamentos</label><label class="switch"><input type="checkbox" data-access="${u.id}" data-field="active" ${u.active ? "checked" : ""} ${u.role === "master" ? "disabled" : ""}><i></i> Ativo</label><span class="role">${u.role}</span></div>`).join("")}</div></article>`; }
@@ -163,6 +196,7 @@ function bindShell() {
   document.querySelector("#monthInput")?.addEventListener("change", (event) => { if (event.target.value) { state.month = event.target.value; renderApp(); } });
   document.querySelector("#settingsMonthInput")?.addEventListener("change", (event) => { if (event.target.value) { state.month = event.target.value; renderApp(); } });
   document.querySelector("#monthToday")?.addEventListener("click", () => { state.month = new Date().toISOString().slice(0, 7); renderApp(); });
+  document.querySelectorAll("[data-calendar-layout]").forEach((button) => button.onclick = () => { state.calendarLayout = button.dataset.calendarLayout; localStorage.setItem("organiza-calendar-layout", state.calendarLayout); renderApp(); });
   document.querySelectorAll("[data-edit]").forEach((b) => b.onclick = () => { const item = state.transactions.find((i) => i.id === b.dataset.edit); if (canEdit()) openRecordModal(item); else openRecordDetails(item); });
   document.querySelectorAll("[data-access]").forEach((input) => input.onchange = async () => { try { await FirebaseService.setUserAccess(input.dataset.access, { [input.dataset.field]: input.checked }); toast("Permissão atualizada."); } catch (e) { input.checked = !input.checked; firebaseError(e); } });
 }
@@ -200,8 +234,24 @@ function openManagementModal(item = null) { const editing = Boolean(item?.id); s
 function openShareModal() { showModal(`<form class="modal" id="shareForm"><button class="modal-close" type="button">×</button><span class="eyebrow">ACESSO COMPARTILHADO</span><h2>Compartilhar gerenciamento</h2><p>A pessoa precisa ter uma conta criada pelo master.</p><label>E-mail do usuário<input name="email" type="email" required></label><label>Permissão<select name="role"><option value="editor">Pode adicionar e editar</option><option value="viewer">Somente visualizar</option></select></label><button class="btn btn-primary wide" type="submit">Compartilhar acesso</button></form>`); const form = document.querySelector("#shareForm"); form.onsubmit = async (e) => { e.preventDefault(); try { await FirebaseService.shareManagement({ managementId: state.selected.id, ...Object.fromEntries(new FormData(form)) }); closeModal(); toast("Gerenciamento compartilhado."); } catch (err) { firebaseError(err); } }; }
 function openUserModal() { showModal(`<form class="modal" id="userForm"><button class="modal-close" type="button">×</button><span class="eyebrow">ACESSO</span><h2>Criar novo usuário</h2><label>Nome<input name="name" required maxlength="100"></label><label>E-mail<input name="email" type="email" required></label><label>Senha temporária<input name="password" type="password" minlength="8" required></label><label class="check"><input name="canCreateManagement" type="checkbox"> Pode criar seus próprios gerenciamentos</label><button class="btn btn-primary wide" type="submit">Criar usuário</button></form>`); const form = document.querySelector("#userForm"); form.onsubmit = async (e) => { e.preventDefault(); const data = Object.fromEntries(new FormData(form)); data.canCreateManagement = form.canCreateManagement.checked; try { await FirebaseService.createManagedUser(data); closeModal(); toast("Usuário criado com sucesso."); } catch (err) { firebaseError(err); } }; }
 
+function recurrenceBaseDescription(item) {
+  if (item.recurrenceBaseDescription) return item.recurrenceBaseDescription;
+  if (item.recurrenceType !== "installment") return item.description || "";
+  const suffix = ` (${item.recurrenceIndex}/${item.recurrenceTotal})`;
+  return String(item.description || "").endsWith(suffix) ? item.description.slice(0, -suffix.length) : item.description || "";
+}
+
+function recurrenceDescription(baseDescription, item) {
+  return item.recurrenceType === "installment" ? `${baseDescription} (${item.recurrenceIndex}/${item.recurrenceTotal})` : baseDescription;
+}
+
 function openRecordModal(item = {}) {
   const type = item.type || "expense"; const paid = item.status === "paid";
+  const isRecurring = Boolean(item.recurrenceGroupId && Number(item.recurrenceTotal) > 1);
+  const baseDescription = isRecurring ? recurrenceBaseDescription(item) : item.description || "";
+  const seriesItems = isRecurring ? state.transactions.filter((transaction) => transaction.recurrenceGroupId === item.recurrenceGroupId) : [];
+  const seriesOccurrences = seriesItems.length || Number(item.recurrenceTotal);
+  const remainingOccurrences = isRecurring ? seriesItems.filter((transaction) => Number(transaction.recurrenceIndex) >= Number(item.recurrenceIndex)).length || 1 : 1;
   const recurrenceFields = !item.id ? `<section class="recurrence-card full" id="recurrenceCard">
     <label class="recurrence-toggle">
       <input name="recurrenceEnabled" type="checkbox">
@@ -211,8 +261,8 @@ function openRecordModal(item = {}) {
       <label>Total de meses <small>Incluindo o mês atual</small><input name="recurrenceMonths" type="number" min="2" max="60" value="2" inputmode="numeric"></label>
       <label>Tipo de repetição<select name="recurrenceType"><option value="fixed">Despesa fixa — mesmo nome</option><option value="installment">Parcelamento — numerar parcelas</option></select></label>
     </div>
-  </section>` : (Number(item.recurrenceTotal) > 1 ? `<div class="recurrence-context full"><b>${item.recurrenceType === "installment" ? "Parcela" : "Despesa recorrente"} ${item.recurrenceIndex} de ${item.recurrenceTotal}</b><small>As alterações afetam somente este lançamento.</small></div>` : "");
-  showModal(`<form class="modal modal-large" id="recordForm"><button class="modal-close" type="button">×</button><span class="eyebrow">${item.id ? "EDITAR" : "NOVO"} LANÇAMENTO</span><h2>${item.id ? esc(item.description) : "Adicionar ao calendário"}</h2><div class="type-toggle"><label><input type="radio" name="type" value="expense" ${type === "expense" ? "checked" : ""}> Débito</label><label><input type="radio" name="type" value="income" ${type === "income" ? "checked" : ""}> Entrada</label></div><div class="form-grid"><label>Descrição<input name="description" value="${attr(item.description || "")}" required maxlength="120"></label><label>Valor<input name="amount" type="number" min="0.01" step="0.01" value="${item.amount || ""}" required></label><label>Categoria<select name="category" id="categorySelect"></select></label><label>Data de vencimento/recebimento<input name="dueDate" type="date" value="${item.dueDate || ""}" required></label><label>Data que deseja pagar/receber<input name="plannedDate" type="date" value="${item.plannedDate || item.dueDate || ""}"></label><label>Status<select name="status" id="status"><option value="pending" ${!paid ? "selected" : ""}>Pendente</option><option value="paid" ${paid ? "selected" : ""}>${type === "income" ? "Recebido" : "Pago"}</option></select></label><label id="paidDateLabel">Data real do pagamento/recebimento<input name="paidDate" type="date" value="${item.paidDate || ""}"></label>${recurrenceFields}<label class="full">Observações<textarea name="notes" maxlength="500">${esc(item.notes || "")}</textarea></label><label class="full file-label">Comprovante (imagem ou PDF, até 10 MB)<input name="attachment" type="file" accept="image/jpeg,image/png,image/webp,application/pdf">${item.attachment?.url ? `<a href="${attr(item.attachment.url)}" target="_blank" rel="noopener">Abrir comprovante atual: ${esc(item.attachment.name)}</a>` : ""}</label></div><div class="modal-actions">${item.id ? '<button class="btn btn-danger" type="button" id="deleteRecord">Excluir</button>' : ""}<button class="btn btn-primary" type="submit">Salvar lançamento</button></div></form>`);
+  </section>` : (isRecurring ? `<section class="recurrence-context full"><b>${item.recurrenceType === "installment" ? "Parcela" : "Despesa recorrente"} ${item.recurrenceIndex} de ${item.recurrenceTotal}</b><small>Valor, datas e descrição podem ser propagados. Pagamento e comprovante continuam individuais.</small><div class="recurrence-scope" role="radiogroup" aria-label="Alcance da alteração"><label><input type="radio" name="recurrenceScope" value="single" checked><span><b>Somente este</b><small>Os outros meses não mudam</small></span></label>${remainingOccurrences > 1 ? `<label><input type="radio" name="recurrenceScope" value="future"><span><b>Este e os próximos</b><small>${remainingOccurrences} lançamentos</small></span></label>` : ""}<label><input type="radio" name="recurrenceScope" value="all"><span><b>Toda a série</b><small>${seriesOccurrences} lançamentos</small></span></label></div></section>` : "");
+  showModal(`<form class="modal modal-large" id="recordForm"><button class="modal-close" type="button">×</button><span class="eyebrow">${item.id ? "EDITAR" : "NOVO"} LANÇAMENTO</span><h2>${item.id ? esc(item.description) : "Adicionar ao calendário"}</h2><div class="type-toggle"><label><input type="radio" name="type" value="expense" ${type === "expense" ? "checked" : ""}> Débito</label><label><input type="radio" name="type" value="income" ${type === "income" ? "checked" : ""}> Entrada</label></div><div class="form-grid"><label>Descrição<input name="description" value="${attr(baseDescription)}" required maxlength="120"></label><label>Valor<input name="amount" type="number" min="0.01" step="0.01" value="${item.amount || ""}" required></label><label>Categoria<select name="category" id="categorySelect"></select></label><label>Data de vencimento/recebimento<input name="dueDate" type="date" value="${item.dueDate || ""}" required></label><label>Data que deseja pagar/receber<input name="plannedDate" type="date" value="${item.plannedDate || item.dueDate || ""}"></label><label>Status<select name="status" id="status"><option value="pending" ${!paid ? "selected" : ""}>Pendente</option><option value="paid" ${paid ? "selected" : ""}>${type === "income" ? "Recebido" : "Pago"}</option></select></label><label id="paidDateLabel">Data real do pagamento/recebimento<input name="paidDate" type="date" value="${item.paidDate || ""}"></label>${recurrenceFields}<label class="full">Observações<textarea name="notes" maxlength="500">${esc(item.notes || "")}</textarea></label><label class="full file-label">Comprovante (imagem ou PDF, até 10 MB)<input name="attachment" type="file" accept="image/jpeg,image/png,image/webp,application/pdf">${item.attachment?.url ? `<a href="${attr(item.attachment.url)}" target="_blank" rel="noopener">Abrir comprovante atual: ${esc(item.attachment.name)}</a>` : ""}</label></div><div class="modal-actions">${item.id ? '<button class="btn btn-danger" type="button" id="deleteRecord">Excluir</button>' : ""}<button class="btn btn-primary" type="submit">Salvar lançamento</button></div></form>`);
   const form = document.querySelector("#recordForm"); const category = form.querySelector("#categorySelect");
   const recurrenceCard = form.querySelector("#recurrenceCard");
   const recurrenceOptions = form.querySelector("#recurrenceOptions");
@@ -247,20 +297,47 @@ function openRecordModal(item = {}) {
       const recurring = !item.id && form.type.value === "expense" && Boolean(form.elements.recurrenceEnabled?.checked);
       const recurrenceMonths = Number(data.recurrenceMonths);
       const recurrenceType = data.recurrenceType || "fixed";
+      const recurrenceScope = data.recurrenceScope || "single";
       delete data.recurrenceEnabled;
       delete data.recurrenceMonths;
       delete data.recurrenceType;
+      delete data.recurrenceScope;
       delete data.attachment;
       if (form.attachment.files[0]) data.attachment = await FirebaseService.uploadAttachment(state.selected.id, form.attachment.files[0], state.user.uid);
       else data.attachment = item.attachment || null;
       if (recurring) await FirebaseService.saveRecurringTransactions(state.selected.id, data, state.user.uid, recurrenceMonths, recurrenceType);
-      else await FirebaseService.saveTransaction(state.selected.id, data, state.user.uid, item.id);
+      else if (isRecurring && recurrenceScope !== "single") await FirebaseService.updateRecurringTransactions(state.selected.id, item, data, state.user.uid, recurrenceScope);
+      else {
+        if (isRecurring) {
+          data.recurrenceBaseDescription = data.description.trim();
+          data.description = recurrenceDescription(data.recurrenceBaseDescription, item);
+        }
+        await FirebaseService.saveTransaction(state.selected.id, data, state.user.uid, item.id);
+      }
       closeModal();
       if (!item.id) { state.view = "dashboard"; renderApp(); }
-      toast(recurring ? `${recurrenceMonths} lançamentos criados.` : "Lançamento salvo.");
+      toast(recurring ? `${recurrenceMonths} lançamentos criados.` : isRecurring && recurrenceScope !== "single" ? recurrenceScope === "all" ? "Toda a série foi atualizada." : "Este e os próximos lançamentos foram atualizados." : "Lançamento salvo.");
     } catch (err) { firebaseError(err); busy(button, false); }
   };
-  document.querySelector("#deleteRecord")?.addEventListener("click", async () => { if (!confirm("Excluir este lançamento?")) return; try { await FirebaseService.deleteTransaction(state.selected.id, item.id); await FirebaseService.deleteAttachment(item.attachment?.path); closeModal(); toast("Lançamento excluído."); } catch (err) { firebaseError(err); } });
+  document.querySelector("#deleteRecord")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    const scope = form.elements.recurrenceScope?.value || "single";
+    let count = scope === "all" ? seriesOccurrences : scope === "future" ? remainingOccurrences : 1;
+    const message = count > 1 ? `Excluir ${count} lançamentos desta série? Esta ação não pode ser desfeita.` : "Excluir este lançamento? Esta ação não pode ser desfeita.";
+    if (!confirm(message)) return;
+    busy(button, true);
+    try {
+      let attachmentPaths = [item.attachment?.path].filter(Boolean);
+      if (isRecurring && scope !== "single") {
+        const result = await FirebaseService.deleteRecurringTransactions(state.selected.id, item, scope);
+        attachmentPaths = result.attachmentPaths;
+        count = result.count;
+      } else await FirebaseService.deleteTransaction(state.selected.id, item.id);
+      Promise.allSettled(attachmentPaths.map((path) => FirebaseService.deleteAttachment(path)));
+      closeModal();
+      toast(count > 1 ? `${count} lançamentos excluídos.` : "Lançamento excluído.");
+    } catch (err) { firebaseError(err); busy(button, false); }
+  });
 }
 
 function showModal(html) { document.querySelector("#modalRoot").innerHTML = `<div class="modal-backdrop">${html}</div>`; document.querySelector(".modal-close").onclick = closeModal; }

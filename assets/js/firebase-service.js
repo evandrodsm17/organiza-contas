@@ -83,11 +83,12 @@ export const FirebaseService = {
     const transactions = collection(db, "managements", managementId, "transactions");
     const batch = writeBatch(db);
     const groupId = globalThis.crypto?.randomUUID?.() || `${uid}-${Date.now()}`;
+    const baseDescription = data.description.trim();
 
     for (let offset = 0; offset < total; offset += 1) {
       const sequence = offset + 1;
       const transactionRef = doc(transactions);
-      const description = recurrenceType === "installment" ? `${data.description} (${sequence}/${total})` : data.description;
+      const description = recurrenceType === "installment" ? `${baseDescription} (${sequence}/${total})` : baseDescription;
       batch.set(transactionRef, {
         ...data,
         description,
@@ -101,6 +102,7 @@ export const FirebaseService = {
         recurrenceIndex: sequence,
         recurrenceTotal: total,
         recurrenceType,
+        recurrenceBaseDescription: baseDescription,
         createdAt: serverTimestamp(),
         createdBy: uid,
         updatedAt: serverTimestamp(),
@@ -110,6 +112,69 @@ export const FirebaseService = {
 
     await batch.commit();
     return { count: total, groupId };
+  },
+  async updateRecurringTransactions(managementId, item, data, uid, scope) {
+    const db = useServices().db;
+    const transactions = collection(db, "managements", managementId, "transactions");
+    const snapshot = await getDocs(query(transactions, where("recurrenceGroupId", "==", item.recurrenceGroupId)));
+    const sourceIndex = Number(item.recurrenceIndex) || 1;
+    const targets = snapshot.docs.filter((entry) => {
+      const index = Number(entry.data().recurrenceIndex) || 1;
+      return scope === "all" || (scope === "future" && index >= sourceIndex);
+    });
+    if (!targets.length) throw new Error("Nenhum lançamento da série foi encontrado.");
+
+    const batch = writeBatch(db);
+    const baseDescription = data.description.trim();
+    const dueDateChanged = data.dueDate !== item.dueDate;
+    const plannedDateChanged = data.plannedDate !== (item.plannedDate || item.dueDate || "");
+    targets.forEach((entry) => {
+      const target = entry.data();
+      const targetIndex = Number(target.recurrenceIndex) || sourceIndex;
+      const offset = targetIndex - sourceIndex;
+      const description = target.recurrenceType === "installment"
+        ? `${baseDescription} (${targetIndex}/${target.recurrenceTotal})`
+        : baseDescription;
+      const payload = {
+        type: data.type,
+        description,
+        recurrenceBaseDescription: baseDescription,
+        amount: Number(data.amount),
+        category: data.category,
+        dueDate: entry.id === item.id || dueDateChanged ? shiftDateByMonths(data.dueDate, offset) : target.dueDate,
+        plannedDate: entry.id === item.id || plannedDateChanged ? shiftDateByMonths(data.plannedDate, offset) : (target.plannedDate || ""),
+        notes: data.notes || "",
+        updatedAt: serverTimestamp(),
+        updatedBy: uid
+      };
+      if (entry.id === item.id) {
+        payload.status = data.status;
+        payload.paidDate = data.paidDate || "";
+        payload.attachment = data.attachment || null;
+      }
+      batch.update(entry.ref, payload);
+    });
+    await batch.commit();
+    return { count: targets.length };
+  },
+  async deleteRecurringTransactions(managementId, item, scope) {
+    const db = useServices().db;
+    const transactions = collection(db, "managements", managementId, "transactions");
+    const snapshot = await getDocs(query(transactions, where("recurrenceGroupId", "==", item.recurrenceGroupId)));
+    const sourceIndex = Number(item.recurrenceIndex) || 1;
+    const targets = snapshot.docs.filter((entry) => {
+      const index = Number(entry.data().recurrenceIndex) || 1;
+      return scope === "all" || (scope === "future" && index >= sourceIndex);
+    });
+    if (!targets.length) throw new Error("Nenhum lançamento da série foi encontrado.");
+
+    const batch = writeBatch(db);
+    targets.forEach((entry) => batch.delete(entry.ref));
+    await batch.commit();
+    return {
+      count: targets.length,
+      attachmentPaths: targets.map((entry) => entry.data().attachment?.path).filter(Boolean)
+    };
   },
   deleteTransaction(managementId, id) { return deleteDoc(doc(useServices().db, "managements", managementId, "transactions", id)); },
   async uploadAttachment(managementId, file, uid) {
