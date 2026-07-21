@@ -1752,6 +1752,9 @@ html[data-theme="dark"] {
 .mobile-new-record {
   display: none;
 }
+.mobile-nav-logout {
+  display: none;
+}
 .head-actions .btn {
   display: flex;
   align-items: center;
@@ -1977,6 +1980,9 @@ html[data-theme="dark"] .auth-backdrop {
   .nav-item small {
     font-size: 9px;
     white-space: nowrap;
+  }
+  .mobile-nav-logout {
+    display: flex;
   }
   .mobile-new-record {
     display: flex;
@@ -2767,10 +2773,6 @@ html[data-theme="dark"] .recurrence-options {
 }
 
 /* Navegação e calendário mobile mais legíveis */
-.mobile-logout {
-  display: none;
-}
-
 .weekdays,
 .calendar {
   min-width: 840px;
@@ -2812,50 +2814,6 @@ html[data-theme="dark"] .recurrence-options {
 }
 
 @media (max-width: 760px) {
-  .workspace-title {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    column-gap: 12px;
-    width: 100%;
-    align-items: start;
-  }
-
-  .workspace-title > .mobile-brand,
-  .workspace-title > h1,
-  .workspace-title > p {
-    grid-column: 1;
-  }
-
-  .workspace-title > h1 {
-    grid-row: 2;
-  }
-
-  .workspace-title > p {
-    grid-row: 3;
-  }
-
-  .mobile-logout {
-    display: flex;
-    grid-column: 2;
-    grid-row: 1 / 4;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    min-height: 42px;
-    padding: 0 13px;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    background: var(--surface);
-    color: var(--ink);
-    font-size: 12px;
-    font-weight: 650;
-  }
-
-  .mobile-logout .ui-icon {
-    width: 17px;
-    height: 17px;
-  }
-
   .mobile-new-record {
     gap: 0;
   }
@@ -2878,12 +2836,6 @@ html[data-theme="dark"] .recurrence-options {
   .day-item {
     font-size: 10px;
   }
-}
-
-html[data-theme="dark"] .mobile-logout {
-  border-color: var(--line);
-  background: var(--surface-raised);
-  color: var(--ink);
 }
 
 /* Detalhamento dos totais e prioridades do dia */
