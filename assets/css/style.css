@@ -4025,30 +4025,67 @@ html[data-theme="dark"] .recurrence-scope label {
 .dashboard-record-groups {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 8px;
 }
 
 .dashboard-record-group + .dashboard-record-group {
-  padding-top: 20px;
+  padding-top: 8px;
   border-top: 1px solid var(--line);
 }
 
-.dashboard-record-group > header {
+.dashboard-record-group > summary {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 2px 0 8px;
+  gap: 10px;
+  min-height: 52px;
+  margin: 0 -8px;
+  padding: 8px;
+  border-radius: 11px;
+  list-style: none;
+  cursor: pointer;
 }
 
-.dashboard-record-group > header > div {
+.dashboard-record-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dashboard-record-group > summary:hover,
+.dashboard-record-group > summary:focus-visible,
+.dashboard-record-group[open] > summary {
+  background: var(--surface-soft);
+}
+
+.dashboard-record-group > summary:focus-visible {
+  outline: 3px solid rgba(49, 87, 213, 0.18);
+  outline-offset: 2px;
+}
+
+.dashboard-record-group > summary::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  margin: -4px 4px 0 2px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+  transition: transform 0.18s ease;
+}
+
+.dashboard-record-group[open] > summary::after {
+  margin-top: 4px;
+  transform: rotate(225deg);
+}
+
+.dashboard-record-group > summary > div {
   display: flex;
+  flex: 1;
   min-width: 0;
   align-items: center;
   gap: 9px;
 }
 
-.dashboard-record-group > header > div > span {
+.dashboard-record-group > summary > div > span {
   width: 9px;
   height: 9px;
   flex: 0 0 9px;
@@ -4056,23 +4093,23 @@ html[data-theme="dark"] .recurrence-scope label {
   background: #3157d5;
 }
 
-.dashboard-record-group.previous > header > div > span {
+.dashboard-record-group.previous > summary > div > span {
   background: #8792a2;
 }
 
-.dashboard-record-group > header > div > div {
+.dashboard-record-group > summary > div > div {
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: 1px;
 }
 
-.dashboard-record-group > header b {
+.dashboard-record-group > summary b {
   font-size: 12px;
   font-weight: 700;
 }
 
-.dashboard-record-group > header small {
+.dashboard-record-group > summary > div small {
   overflow: hidden;
   color: var(--muted);
   font-size: 10px;
@@ -4080,8 +4117,11 @@ html[data-theme="dark"] .recurrence-scope label {
   white-space: nowrap;
 }
 
-.dashboard-record-group > header > strong {
+.dashboard-record-group > summary > strong {
+  display: inline-flex;
   min-width: 30px;
+  align-items: center;
+  gap: 4px;
   padding: 4px 8px;
   border-radius: 999px;
   background: var(--surface-soft);
@@ -4090,6 +4130,16 @@ html[data-theme="dark"] .recurrence-scope label {
   font-weight: 650;
   text-align: center;
   white-space: nowrap;
+}
+
+.dashboard-record-group > summary > strong small {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.dashboard-record-group > .record-list {
+  padding-top: 6px;
 }
 
 .logout-confirm-modal {
@@ -4146,14 +4196,14 @@ html[data-theme="dark"] .logout-confirm-modal .btn-danger {
 
 @media (max-width: 760px) {
   .dashboard-record-groups {
-    gap: 16px;
+    gap: 6px;
   }
 
   .dashboard-record-group + .dashboard-record-group {
-    padding-top: 16px;
+    padding-top: 6px;
   }
 
-  .dashboard-record-group > header small {
+  .dashboard-record-group > summary > div small {
     max-width: 220px;
   }
 
@@ -4177,7 +4227,11 @@ html[data-theme="dark"] .logout-confirm-modal .btn-danger {
 }
 
 @media (max-width: 390px) {
-  .dashboard-record-group > header small {
+  .dashboard-record-group > summary > div small {
     max-width: 180px;
+  }
+
+  .dashboard-record-group > summary > strong small {
+    display: none;
   }
 }

@@ -4,7 +4,7 @@ const app = document.querySelector("#app");
 const toastArea = document.querySelector("#toastArea");
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const dateLabel = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", timeZone: "UTC" });
-const state = { user: null, profile: null, managements: [], selected: null, transactions: [], month: new Date().toISOString().slice(0, 7), view: "dashboard", calendarLayout: localStorage.getItem("organiza-calendar-layout") || (matchMedia("(max-width: 760px)").matches ? "agenda" : "grid"), users: [] };
+const state = { user: null, profile: null, managements: [], selected: null, transactions: [], month: new Date().toISOString().slice(0, 7), view: "dashboard", calendarLayout: localStorage.getItem("organiza-calendar-layout") || (matchMedia("(max-width: 760px)").matches ? "agenda" : "grid"), dashboardGroupOpen: { upcoming: true, previous: false }, users: [] };
 let stopManagements = () => {}, stopTransactions = () => {}, stopUsers = () => {};
 document.documentElement.dataset.theme = localStorage.getItem("organiza-theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
 
@@ -89,13 +89,11 @@ function renderDashboardGroups(items) {
   const dateOf = (item) => item.dueDate || item.plannedDate || "";
   const upcoming = items.filter((item) => dateOf(item) >= today).sort((a, b) => dateOf(a).localeCompare(dateOf(b)));
   const previous = items.filter((item) => dateOf(item) < today).sort((a, b) => dateOf(b).localeCompare(dateOf(a)));
-  const upcomingVisible = upcoming.slice(0, previous.length ? 4 : 7);
-  const previousVisible = previous.slice(0, upcoming.length ? 3 : 7);
-  return `<div class="dashboard-record-groups">${upcoming.length ? dashboardRecordGroup("Hoje e próximos", "Vencimentos e recebimentos a partir de hoje", "upcoming", upcomingVisible, upcoming.length) : ""}${previous.length ? dashboardRecordGroup("Datas anteriores", "Lançamentos mais recentes primeiro", "previous", previousVisible, previous.length) : ""}</div>`;
+  return `<div class="dashboard-record-groups">${upcoming.length ? dashboardRecordGroup("Hoje e próximos", "Vencimentos e recebimentos a partir de hoje", "upcoming", upcoming) : ""}${previous.length ? dashboardRecordGroup("Datas anteriores", "Lançamentos mais recentes primeiro", "previous", previous) : ""}</div>`;
 }
-function dashboardRecordGroup(title, description, tone, items, total) {
-  const counter = items.length < total ? `${items.length} de ${total}` : total;
-  return `<section class="dashboard-record-group ${tone}"><header><div><span aria-hidden="true"></span><div><b>${title}</b><small>${description}</small></div></div><strong>${counter}</strong></header><div class="record-list">${items.map(recordRow).join("")}</div></section>`;
+function dashboardRecordGroup(title, description, tone, items) {
+  const countLabel = items.length === 1 ? "lançamento" : "lançamentos";
+  return `<details class="dashboard-record-group ${tone}" data-dashboard-group="${tone}" ${state.dashboardGroupOpen[tone] ? "open" : ""}><summary><div><span aria-hidden="true"></span><div><b>${title}</b><small>${description}</small></div></div><strong><span>${items.length}</span><small>${countLabel}</small></strong></summary><div class="record-list">${items.map(recordRow).join("")}</div></details>`;
 }
 function expenseLimitForMonth() { return Number(state.selected?.monthlyExpenseLimits?.[state.month] || 0); }
 function renderBudgetScore(expense) {
@@ -184,6 +182,7 @@ function bindShell() {
   document.querySelector("#themeToggle")?.addEventListener("click", toggleTheme);
   document.querySelectorAll("[data-view]").forEach((button) => button.onclick = () => { state.view = button.dataset.view; if (state.view === "users") observeUsers(); renderApp(); });
   document.querySelectorAll("[data-go]").forEach((button) => button.onclick = () => { state.view = button.dataset.go; if (button.dataset.layout) { state.calendarLayout = button.dataset.layout; localStorage.setItem("organiza-calendar-layout", state.calendarLayout); } if (state.view === "users") observeUsers(); renderApp(); });
+  document.querySelectorAll("[data-dashboard-group]").forEach((details) => details.ontoggle = () => { state.dashboardGroupOpen[details.dataset.dashboardGroup] = details.open; });
   document.querySelectorAll("[data-summary]").forEach((button) => button.onclick = () => openSummaryModal(button.dataset.summary));
   document.querySelector("#managementSelect").onchange = (e) => { state.selected = state.managements.find((i) => i.id === e.target.value) || null; observeTransactions(); renderApp(); };
   document.querySelector("#newManagement")?.addEventListener("click", () => openManagementModal()); document.querySelector("#editManagement")?.addEventListener("click", () => openManagementModal(state.selected)); document.querySelector("#emptyCreate")?.addEventListener("click", () => openManagementModal());
