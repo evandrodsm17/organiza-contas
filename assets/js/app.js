@@ -13,6 +13,29 @@ const categories = {
   income: ["Salário", "Freelance", "Benefício", "Rendimento", "Reembolso", "Venda", "Outros"]
 };
 
+const categoryIcons = {
+  expense: {
+    "Cartão": "credit-card", Água: "droplet", Energia: "bolt", Celular: "smartphone",
+    Internet: "wifi", Alimentação: "utensils", Moradia: "home", Transporte: "car",
+    Saúde: "heart", Educação: "book", Lazer: "gamepad", Impostos: "receipt", Outros: "tag"
+  },
+  income: {
+    Salário: "banknote", Freelance: "laptop", Benefício: "gift", Rendimento: "trending-up",
+    Reembolso: "rotate-ccw", Venda: "shopping-bag", Outros: "wallet"
+  }
+};
+
+function categoryIconName(item) {
+  const type = item?.type === "income" ? "income" : "expense";
+  return categoryIcons[type][item?.category] || (type === "income" ? "wallet" : "tag");
+}
+
+function categoryIconBadge(item, baseClass = "cat-icon") {
+  const tone = item?.type === "income" ? "income-icon" : "expense-icon";
+  const label = item?.category || "Outros";
+  return `<span class="${baseClass} ${tone}" title="${attr(label)}" aria-hidden="true">${icon(categoryIconName(item))}</span>`;
+}
+
 FirebaseService.observeAuth(async (user) => {
   cleanupObservers(); state.user = user;
   if (!user) { state.profile = null; renderPublic(); return; }
@@ -28,7 +51,7 @@ function cleanupObservers() { stopManagements(); stopTransactions(); stopUsers()
 function renderPublic(showLogin = false) {
   app.innerHTML = `<header class="public-header"><a class="brand" href="#"><img class="brand-logo" src="assets/logo.png" alt=""><span>OrganizaContas</span></a><div class="public-actions">${themeButton()}<button class="btn btn-ghost" id="loginOpen">Entrar</button></div></header>
   <main><section class="hero"><div class="hero-copy"><span class="eyebrow">FINANÇAS EM CONJUNTO</span><h1>As contas do mês,<br><em>claras para todos.</em></h1><p>Organize receitas, vencimentos, pagamentos e comprovantes em um calendário compartilhado com quem cuida das finanças com você.</p><button class="btn btn-primary" id="heroLogin">Acessar meu espaço <span>→</span></button><div class="hero-points"><span>✓ Calendário mensal</span><span>✓ Acesso compartilhado</span><span>✓ Comprovantes seguros</span></div></div>
-  <div class="hero-visual"><div class="mock-card"><div class="mock-head"><span>Resumo de julho</span><b>${money.format(5280)}</b></div><div class="mock-progress"><i></i></div><div class="mock-row"><span class="cat-icon expense-icon">⚡</span><div><b>Energia</b><small>Vence dia 12</small></div><strong>${money.format(219.4)}</strong></div><div class="mock-row"><span class="cat-icon income-icon">↗</span><div><b>Salário</b><small>Recebido dia 05</small></div><strong class="positive">+ ${money.format(4800)}</strong></div><div class="mock-row"><span class="cat-icon blue">▣</span><div><b>Internet</b><small>Pago antecipado</small></div><span class="pill paid">Pago</span></div></div></div></section>
+  <div class="hero-visual"><div class="mock-card"><div class="mock-head"><span>Resumo de julho</span><b>${money.format(5280)}</b></div><div class="mock-progress"><i></i></div><div class="mock-row">${categoryIconBadge({ type: "expense", category: "Energia" })}<div><b>Energia</b><small>Vence dia 12</small></div><strong>${money.format(219.4)}</strong></div><div class="mock-row">${categoryIconBadge({ type: "income", category: "Salário" })}<div><b>Salário</b><small>Recebido dia 05</small></div><strong class="positive">+ ${money.format(4800)}</strong></div><div class="mock-row">${categoryIconBadge({ type: "expense", category: "Internet" })}<div><b>Internet</b><small>Pago antecipado</small></div><span class="pill paid">Pago</span></div></div></div></section>
   <section class="how"><span class="eyebrow">COMO FUNCIONA</span><h2>Do vencimento ao comprovante</h2><div class="feature-grid">${feature("01", "Crie seu espaço", "Separe as finanças da casa, de uma viagem ou de qualquer planejamento compartilhado.")}${feature("02", "Registre tudo", "Adicione entradas e débitos com vencimento, data planejada e categorias personalizadas.")}${feature("03", "Compartilhe", "Convide outra pessoa para consultar, incluir e atualizar os mesmos registros.")}${feature("04", "Confirme o pagamento", "Informe a data real e anexe imagem ou PDF do comprovante quando precisar.")}</div></section></main>
   <footer>OrganizaContas · Organização financeira sem complicação</footer>${showLogin ? loginModal() : ""}`;
   document.querySelector("#loginOpen").onclick = () => renderPublic(true);
@@ -121,7 +144,7 @@ function recordRow(item) {
   const recurrence = Number(item.recurrenceTotal) > 1
     ? ` · ${item.recurrenceType === "installment" ? "Parcela" : "Recorrente"} ${item.recurrenceIndex}/${item.recurrenceTotal}`
     : "";
-  return `<button class="record-row" data-edit="${item.id}"><span class="cat-icon ${item.type === "income" ? "income-icon" : "expense-icon"}">${item.type === "income" ? "↗" : "↘"}</span><div><b>${esc(item.description)}</b><small>${esc(item.category)} · ${formatDate(item.dueDate)}${recurrence}</small></div><strong class="${item.type === "income" ? "positive" : ""}">${item.type === "income" ? "+ " : ""}${money.format(item.amount)}</strong><span class="pill ${status.className}">${status.label}</span></button>`;
+  return `<button class="record-row" data-edit="${item.id}">${categoryIconBadge(item)}<div><b>${esc(item.description)}</b><small>${esc(item.category)} · ${formatDate(item.dueDate)}${recurrence}</small></div><strong class="${item.type === "income" ? "positive" : ""}">${item.type === "income" ? "+ " : ""}${money.format(item.amount)}</strong><span class="pill ${status.className}">${status.label}</span></button>`;
 }
 
 function renderCalendar(monthName) {
@@ -161,7 +184,7 @@ function agendaDay(date, items) {
 
 function agendaItem(item) {
   const status = financialStatus(item);
-  return `<button type="button" class="agenda-item" data-edit="${item.id}"><span class="cat-icon ${item.type === "income" ? "income-icon" : "expense-icon"}">${item.type === "income" ? "↗" : "↘"}</span><span class="agenda-item-copy"><b>${esc(item.description)}</b><small>${esc(item.category)}${Number(item.recurrenceTotal) > 1 ? ` · ${item.recurrenceType === "installment" ? "Parcela" : "Recorrente"} ${item.recurrenceIndex}/${item.recurrenceTotal}` : ""}</small></span><span class="agenda-item-value"><b class="${item.type === "income" ? "positive" : ""}">${item.type === "income" ? "+ " : ""}${money.format(item.amount)}</b><span class="pill ${status.className}">${status.label}</span></span></button>`;
+  return `<button type="button" class="agenda-item" data-edit="${item.id}">${categoryIconBadge(item)}<span class="agenda-item-copy"><b>${esc(item.description)}</b><small>${esc(item.category)}${Number(item.recurrenceTotal) > 1 ? ` · ${item.recurrenceType === "installment" ? "Parcela" : "Recorrente"} ${item.recurrenceIndex}/${item.recurrenceTotal}` : ""}</small></span><span class="agenda-item-value"><b class="${item.type === "income" ? "positive" : ""}">${item.type === "income" ? "+ " : ""}${money.format(item.amount)}</b><span class="pill ${status.className}">${status.label}</span></span></button>`;
 }
 
 function renderUsers() { if (state.profile.role !== "master") return ""; return `<div class="content-head"><div><strong>Usuários autorizados</strong><span>Somente o master pode criar e alterar acessos.</span></div><button class="btn btn-primary" id="createUser">+ Criar usuário</button></div><article class="panel"><div class="user-list">${state.users.map((u) => `<div class="user-row"><span>${initials(u.name)}</span><div><b>${esc(u.name)}</b><small>${esc(u.email)}</small></div><label class="switch"><input type="checkbox" data-access="${u.id}" data-field="canCreateManagement" ${u.canCreateManagement ? "checked" : ""} ${u.role === "master" ? "disabled" : ""}><i></i> Pode criar gerenciamentos</label><label class="switch"><input type="checkbox" data-access="${u.id}" data-field="active" ${u.active ? "checked" : ""} ${u.role === "master" ? "disabled" : ""}><i></i> Ativo</label><span class="role">${u.role}</span></div>`).join("")}</div></article>`; }
@@ -217,7 +240,7 @@ function canEdit() { return ["owner", "editor"].includes(currentRole()); }
 function isOwner() { return currentRole() === "owner"; }
 function financialStatus(item) { if (item.status === "paid") return item.type === "income" ? { className: "received", label: "Recebido" } : { className: "paid", label: "Pago" }; const overdue = item.type === "expense" && item.dueDate && item.dueDate < todayKey(); return overdue ? { className: "overdue", label: "Em atraso" } : { className: "pending", label: "Pendente" }; }
 function calendarStatus(item) { const status = financialStatus(item).className; if (item.type === "income") return status === "received" ? "income-received" : "income-pending"; return `expense-${status}`; }
-function openRecordDetails(item) { showModal(`<article class="modal"><button class="modal-close" type="button">×</button><span class="eyebrow">SOMENTE LEITURA</span><h2>${esc(item.description)}</h2><p>${esc(item.category)} · ${formatDate(item.dueDate)}</p><div class="summary"><span class="summary-icon ${item.type === "income" ? "income-icon" : "expense-icon"}">${item.type === "income" ? "↗" : "↘"}</span><div><small>Valor</small><b>${money.format(item.amount)}</b></div></div><p><strong>Data planejada:</strong> ${formatDate(item.plannedDate)}</p><p><strong>Data real:</strong> ${formatDate(item.paidDate)}</p>${item.notes ? `<p>${esc(item.notes)}</p>` : ""}${item.attachment?.url ? `<a class="btn btn-soft" href="${attr(item.attachment.url)}" target="_blank" rel="noopener">Abrir comprovante</a>` : ""}</article>`); }
+function openRecordDetails(item) { showModal(`<article class="modal"><button class="modal-close" type="button">×</button><span class="eyebrow">SOMENTE LEITURA</span><h2>${esc(item.description)}</h2><p>${esc(item.category)} · ${formatDate(item.dueDate)}</p><div class="summary">${categoryIconBadge(item, "summary-icon")}<div><small>Valor</small><b>${money.format(item.amount)}</b></div></div><p><strong>Data planejada:</strong> ${formatDate(item.plannedDate)}</p><p><strong>Data real:</strong> ${formatDate(item.paidDate)}</p>${item.notes ? `<p>${esc(item.notes)}</p>` : ""}${item.attachment?.url ? `<a class="btn btn-soft" href="${attr(item.attachment.url)}" target="_blank" rel="noopener">Abrir comprovante</a>` : ""}</article>`); }
 function openSummaryModal(type) {
   const definitions = {
     income: { eyebrow: "ENTRADAS DO MÊS", title: "Composição das entradas", description: "Entradas previstas e recebidas com data de recebimento no mês selecionado.", filter: (item) => item.type === "income" },
@@ -238,7 +261,7 @@ function openSummaryModal(type) {
 }
 function summaryDetailRow(item) {
   const status = financialStatus(item);
-  return `<button class="summary-detail-row" type="button" data-summary-edit="${item.id}"><span class="cat-icon ${item.type === "income" ? "income-icon" : "expense-icon"}">${item.type === "income" ? "↗" : "↘"}</span><span class="summary-detail-copy"><b>${esc(item.description)}</b><small>${esc(item.category)} · ${formatDate(item.dueDate)}</small></span><strong class="${item.type === "income" ? "positive" : ""}">${item.type === "income" ? "+ " : ""}${money.format(item.amount)}</strong><span class="pill ${status.className}">${status.label}</span></button>`;
+  return `<button class="summary-detail-row" type="button" data-summary-edit="${item.id}">${categoryIconBadge(item)}<span class="summary-detail-copy"><b>${esc(item.description)}</b><small>${esc(item.category)} · ${formatDate(item.dueDate)}</small></span><strong class="${item.type === "income" ? "positive" : ""}">${item.type === "income" ? "+ " : ""}${money.format(item.amount)}</strong><span class="pill ${status.className}">${status.label}</span></button>`;
 }
 function openManagementModal(item = null) { const editing = Boolean(item?.id); showModal(`<form class="modal" id="managementForm"><button class="modal-close" type="button">×</button><span class="eyebrow">${editing ? "EDITAR" : "NOVO"} ESPAÇO</span><h2>${editing ? "Editar gerenciamento" : "Criar gerenciamento"}</h2><label>Nome<input name="name" placeholder="Ex.: Contas de casa" value="${attr(item?.name || "")}" required maxlength="80"></label><label>Descrição<textarea name="description" placeholder="Opcional" maxlength="240">${esc(item?.description || "")}</textarea></label><button class="btn btn-primary wide" type="submit">${editing ? "Salvar alterações" : "Criar gerenciamento"}</button></form>`); const form = document.querySelector("#managementForm"); form.onsubmit = async (e) => { e.preventDefault(); const button = form.querySelector("button[type=submit]"); busy(button, true); try { const data = Object.fromEntries(new FormData(form)); if (editing) await FirebaseService.updateManagement(item.id, { name: data.name.trim(), description: data.description.trim() }); else await FirebaseService.createManagement(data, state.user); closeModal(); toast(editing ? "Gerenciamento atualizado." : "Gerenciamento criado."); } catch (err) { firebaseError(err); busy(button, false); } }; }
 function openShareModal() { showModal(`<form class="modal" id="shareForm"><button class="modal-close" type="button">×</button><span class="eyebrow">ACESSO COMPARTILHADO</span><h2>Compartilhar gerenciamento</h2><p>A pessoa precisa ter uma conta criada pelo master.</p><label>E-mail do usuário<input name="email" type="email" required></label><label>Permissão<select name="role"><option value="editor">Pode adicionar e editar</option><option value="viewer">Somente visualizar</option></select></label><button class="btn btn-primary wide" type="submit">Compartilhar acesso</button></form>`); const form = document.querySelector("#shareForm"); form.onsubmit = async (e) => { e.preventDefault(); try { await FirebaseService.shareManagement({ managementId: state.selected.id, ...Object.fromEntries(new FormData(form)) }); closeModal(); toast("Gerenciamento compartilhado."); } catch (err) { firebaseError(err); } }; }
@@ -389,6 +412,24 @@ function icon(name) {
     edit:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/>',
     gauge:'<path d="M4 15a8 8 0 0 1 16 0"/><path d="m12 15 4-5"/><circle cx="12" cy="15" r="1"/>',
     wallet:'<path d="M4 6h14a2 2 0 0 1 2 2v10H4a2 2 0 0 1-2-2V6a3 3 0 0 1 3-3h12"/><path d="M16 11h4v4h-4a2 2 0 0 1 0-4Z"/>',
+    'credit-card':'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h3"/>',
+    droplet:'<path d="M12 2.7s6 6.4 6 11a6 6 0 0 1-12 0c0-4.6 6-11 6-11Z"/><path d="M9 15.5a3 3 0 0 0 3 2"/>',
+    bolt:'<path d="m13 2-8 12h7l-1 8 8-12h-7Z"/>',
+    smartphone:'<rect x="6" y="2" width="12" height="20" rx="2"/><path d="M10 5h4M11 18h2"/>',
+    wifi:'<path d="M5 12.6a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M12 20h.01M2 9a15 15 0 0 1 20 0"/>',
+    utensils:'<path d="M7 3v8M4 3v5a3 3 0 0 0 6 0V3M7 11v10M17 3v18M14 3v7h3"/>',
+    car:'<path d="m5 17-1-4 2-5h12l2 5-1 4Z"/><path d="M5 17v2M19 17v2M4 13h16M7 13h.01M17 13h.01"/>',
+    heart:'<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/><path d="M7 12h2l1-2 2 5 1.5-3H17"/>',
+    book:'<path d="M4 4h6a3 3 0 0 1 3 3v13a3 3 0 0 0-3-3H4ZM20 4h-4a3 3 0 0 0-3 3v13a3 3 0 0 1 3-3h4Z"/>',
+    gamepad:'<path d="M8 8h8a5 5 0 0 1 4.8 6.4l-1 3.2a2 2 0 0 1-3.3.8L14.5 16h-5l-2 2.4a2 2 0 0 1-3.3-.8l-1-3.2A5 5 0 0 1 8 8Z"/><path d="M7 12v4M5 14h4M16 13h.01M18 15h.01"/>',
+    receipt:'<path d="M6 2v20l3-2 3 2 3-2 3 2V2l-3 2-3-2-3 2Z"/><path d="M9 9h6M9 13h6M9 17h4"/>',
+    tag:'<path d="m20 13-7 7L4 11V4h7l9 9Z"/><circle cx="8.5" cy="8.5" r="1.5"/>',
+    banknote:'<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M7 9H6a1 1 0 0 1-1-1M17 15h1a1 1 0 0 1 1 1"/>',
+    laptop:'<rect x="5" y="4" width="14" height="11" rx="1"/><path d="M3 19h18M7 19l1-4h8l1 4"/>',
+    gift:'<rect x="3" y="9" width="18" height="12" rx="2"/><path d="M12 9v12M3 13h18M7.5 9C5 9 4 7.8 4 6.5S5 4 6.5 4C9 4 12 9 12 9M16.5 9C19 9 20 7.8 20 6.5S19 4 17.5 4C15 4 12 9 12 9"/>',
+    'trending-up':'<path d="m3 17 6-6 4 4 7-8"/><path d="M14 7h6v6"/>',
+    'rotate-ccw':'<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
+    'shopping-bag':'<path d="M5 8h14l-1 13H6L5 8Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/>',
     palette:'<path d="M12 3a9 9 0 0 0 0 18h1.5a1.5 1.5 0 0 0 0-3H12a2 2 0 0 1 0-4h4a5 5 0 0 0 0-10Z"/><circle cx="7.5" cy="10.5" r=".7"/><circle cx="10" cy="7" r=".7"/><circle cx="14" cy="7" r=".7"/>',
     monitor:'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
     plus:'<path d="M12 5v14M5 12h14"/>',

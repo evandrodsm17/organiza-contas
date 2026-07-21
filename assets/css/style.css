@@ -240,6 +240,16 @@ h3,
   border-radius: 12px;
   font-weight: 800;
 }
+.cat-icon .ui-icon,
+.summary-icon .ui-icon {
+  width: 19px;
+  height: 19px;
+  stroke-width: 1.85;
+}
+.summary-icon .ui-icon {
+  width: 20px;
+  height: 20px;
+}
 .orange {
   background: #fff0e3;
   color: #b86825;
