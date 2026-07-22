@@ -1698,6 +1698,52 @@ textarea {
   }
 }
 
+/* Contornos suaves no tema claro */
+html:not([data-theme="dark"]) {
+  --line: #e6eaf1;
+  --surface-soft: #f8f9fb;
+  --hover: #f2f5f9;
+}
+
+html:not([data-theme="dark"]) input,
+html:not([data-theme="dark"]) select,
+html:not([data-theme="dark"]) textarea {
+  border-color: #dde3ec;
+}
+
+html:not([data-theme="dark"]) .modal {
+  border-color: #eef1f6;
+}
+
+html:not([data-theme="dark"]) :is(
+    .panel,
+    .summary,
+    .calendar-filters,
+    .settings-management,
+    .theme-options button,
+    .google-login,
+    .icon-btn,
+    .month-control button,
+    .card-editor-preview,
+    .record-card-field,
+    .summary-detail-total
+  ) {
+  border-color: var(--line);
+}
+
+:is(button, a, input, select, textarea, summary):focus-visible {
+  outline: 2px solid rgba(49, 87, 213, 0.42);
+  outline-offset: 2px;
+}
+
+.payment-card {
+  border-color: color-mix(in srgb, var(--card-bg) 82%, #d8deea);
+}
+
+.payment-card::after {
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
 /* Tema, ícones e navegação mensal */
 :root {
   color-scheme: light;

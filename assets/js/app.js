@@ -650,7 +650,10 @@ function renderCardVisual(card, preview = false) {
   ]
     .filter(Boolean)
     .join(" · ");
-  return `<div class="payment-card ${preview ? "payment-card-preview" : ""}" style="--card-bg:${attr(background)};--card-ink:${attr(ink)}"><div class="payment-card-top"><span class="payment-card-brand">${icon("credit-card")}<b>${esc(card.name || "Nome do cartão")}</b></span><span class="payment-card-logo-wrap"><span class="payment-card-logo-fallback">${initials(card.name || "Cartão")}</span>${logoUrl ? `<img class="payment-card-logo" data-card-logo src="${attr(logoUrl)}" alt="Logo de ${attr(card.name || "cartão")}">` : ""}</span></div><div class="payment-card-bottom"><span><small>TITULAR</small><b>${esc(card.holderName || "Nome do titular")}</b></span>${footer ? `<small>${esc(footer)}</small>` : ""}</div></div>`;
+  const logo = logoUrl
+    ? `<img class="payment-card-logo" data-card-logo src="${attr(logoUrl)}" alt="Logo de ${attr(card.name || "cartão")}">`
+    : `<span class="payment-card-logo-fallback">${initials(card.name || "Cartão")}</span>`;
+  return `<div class="payment-card ${preview ? "payment-card-preview" : ""}" style="--card-bg:${attr(background)};--card-ink:${attr(ink)}"><div class="payment-card-top"><span class="payment-card-brand">${icon("credit-card")}<b>${esc(card.name || "Nome do cartão")}</b></span><span class="payment-card-logo-wrap">${logo}</span></div><div class="payment-card-bottom"><span><small>TITULAR</small><b>${esc(card.holderName || "Nome do titular")}</b></span>${footer ? `<small>${esc(footer)}</small>` : ""}</div></div>`;
 }
 function renderCardsSettings() {
   if (!state.selected) {
