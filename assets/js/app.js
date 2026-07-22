@@ -22,12 +22,14 @@ const state = {
   calendarLayout:
     localStorage.getItem("organiza-calendar-layout") ||
     (matchMedia("(max-width: 760px)").matches ? "agenda" : "grid"),
+  calendarFilters: { query: "", expenseCategory: "", sort: "date" },
   dashboardGroupOpen: { upcoming: true, previous: false },
   users: [],
 };
 let stopManagements = () => {},
   stopTransactions = () => {},
   stopUsers = () => {};
+let calendarSearchTimer = 0;
 document.documentElement.dataset.theme =
   localStorage.getItem("organiza-theme") ||
   (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
@@ -257,6 +259,68 @@ function totals() {
 function sum(items) {
   return items.reduce((acc, item) => acc + Number(item.amount || 0), 0);
 }
+function normalizeSearch(value = "") {
+  return String(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR")
+    .trim();
+}
+function calendarFiltersActive() {
+  const filters = state.calendarFilters;
+  return Boolean(
+    filters.query.trim() ||
+      filters.expenseCategory ||
+      filters.sort !== "date",
+  );
+}
+function filteredCalendarTransactions() {
+  const filters = state.calendarFilters;
+  const query = normalizeSearch(filters.query);
+  let items = monthTransactions().slice();
+  if (query) {
+    items = items.filter((item) =>
+      normalizeSearch(item.description).includes(query),
+    );
+  }
+  if (filters.expenseCategory) {
+    items = items.filter(
+      (item) =>
+        item.type === "expense" &&
+        item.category === filters.expenseCategory,
+    );
+  }
+  return items.sort((a, b) => {
+    if (filters.sort === "amount-asc" || filters.sort === "amount-desc") {
+      const direction = filters.sort === "amount-asc" ? 1 : -1;
+      const amountDifference =
+        (Number(a.amount || 0) - Number(b.amount || 0)) * direction;
+      if (amountDifference) return amountDifference;
+    }
+    return (
+      String(a.dueDate || "").localeCompare(String(b.dueDate || "")) ||
+      String(a.description || "").localeCompare(
+        String(b.description || ""),
+        "pt-BR",
+      )
+    );
+  });
+}
+function expenseFilterCategories() {
+  const known = categories.expense.slice();
+  monthTransactions()
+    .filter((item) => item.type === "expense" && item.category)
+    .forEach((item) => {
+      if (!known.includes(item.category)) known.push(item.category);
+    });
+  return known;
+}
+function renderCalendarFilters(filteredItems) {
+  const filters = state.calendarFilters;
+  const total = monthTransactions().length;
+  const resultLabel = filteredItems.length === 1 ? "resultado" : "resultados";
+  return `<section class="calendar-filters" aria-label="Filtros dos lançamentos"><div class="calendar-filter-fields"><label class="calendar-search-field"><span>Buscar por nome</span><div>${icon("search")}<input id="transactionSearch" type="search" value="${attr(filters.query)}" placeholder="Ex.: aluguel, energia..." autocomplete="off"></div></label><label><span>Categoria de despesa</span><select id="expenseCategoryFilter"><option value="">Todas as categorias</option>${expenseFilterCategories().map((category) => `<option value="${attr(category)}" ${filters.expenseCategory === category ? "selected" : ""}>${esc(category)}</option>`).join("")}</select></label><label><span>Ordenar</span><select id="transactionSort"><option value="date" ${filters.sort === "date" ? "selected" : ""}>Data: mais antiga</option><option value="amount-asc" ${filters.sort === "amount-asc" ? "selected" : ""}>Valor: menor primeiro</option><option value="amount-desc" ${filters.sort === "amount-desc" ? "selected" : ""}>Valor: maior primeiro</option></select></label></div><div class="calendar-filter-meta"><span aria-live="polite"><b>${filteredItems.length}</b> ${resultLabel} de ${total}</span>${calendarFiltersActive() ? '<button id="clearCalendarFilters" class="calendar-filter-clear" type="button">Limpar filtros</button>' : ""}</div></section>`;
+}
 function monthControl() {
   return `<div class="month-control"><button class="month-arrow" data-month="-1" aria-label="Mês anterior" title="Mês anterior">${icon("chevron-left")}</button><label class="month-field"><span>Período</span><input id="monthInput" type="month" value="${state.month}" aria-label="Escolher mês e ano"></label><button class="month-arrow" data-month="1" aria-label="Próximo mês" title="Próximo mês">${icon("chevron-right")}</button><button class="month-today" id="monthToday" type="button">Hoje</button></div>`;
 }
@@ -271,7 +335,53 @@ function renderDashboard(monthName) {
       item.status !== "paid" &&
       item.dueDate === todayKey(),
   );
-  return `<div class="content-head">${monthControl(monthName)}<span>${monthTransactions().length} lançamentos no período</span></div>${dueToday.length ? renderTodayAlert(dueToday) : ""}<section class="summary-grid">${summary("Entradas", total.income, "success", "↗", "income")}${summary("Despesas", total.expense, "danger", "↘", "expense")}${summary("Pago", total.paid, "info", "✓", "paid")}${summary("Saldo previsto", total.income - total.expense, total.income - total.expense >= 0 ? "success" : "danger", "=")}</section><section class="dashboard-grid">${renderBudgetScore(total.expense)}<article class="panel upcoming-panel"><div class="panel-head"><div><h2>Lançamentos do período</h2><p>Organizados em relação à data de hoje</p></div><button class="text-btn" data-go="calendar" data-layout="agenda">Ver na agenda</button></div>${list.length ? renderDashboardGroups(list) : empty("Nenhum lançamento neste mês.")}</article><article class="panel status-panel"><div class="panel-head"><div><h2>Situação das despesas</h2><p>Acompanhamento do mês</p></div></div><div class="donut" style="--paid:${total.expense ? Math.round((total.paid / total.expense) * 100) : 0}"><div><b>${total.expense ? Math.round((total.paid / total.expense) * 100) : 0}%</b><span>pago</span></div></div><div class="legend"><span><i class="dot blue"></i>Pago <b>${money.format(total.paid)}</b></span><span><i class="dot orange"></i>Pendente <b>${money.format(total.pending)}</b></span></div></article></section>`;
+  return `<div class="content-head">${monthControl(monthName)}<span>${monthTransactions().length} lançamentos no período</span></div>${dueToday.length ? renderTodayAlert(dueToday) : ""}<section class="summary-grid">${summary("Entradas", total.income, "success", "↗", "income")}${summary("Despesas", total.expense, "danger", "↘", "expense")}${summary("Pago", total.paid, "info", "✓", "paid")}${summary("Saldo previsto", total.income - total.expense, total.income - total.expense >= 0 ? "success" : "danger", "=")}</section>${renderExpenseInsights(monthName)}<section class="dashboard-grid">${renderBudgetScore(total.expense)}<article class="panel upcoming-panel"><div class="panel-head"><div><h2>Lançamentos do período</h2><p>Organizados em relação à data de hoje</p></div><button class="text-btn" data-go="calendar" data-layout="agenda">Ver na agenda</button></div>${list.length ? renderDashboardGroups(list) : empty("Nenhum lançamento neste mês.")}</article><article class="panel status-panel"><div class="panel-head"><div><h2>Situação das despesas</h2><p>Acompanhamento do mês</p></div></div><div class="donut" style="--paid:${total.expense ? Math.round((total.paid / total.expense) * 100) : 0}"><div><b>${total.expense ? Math.round((total.paid / total.expense) * 100) : 0}%</b><span>pago</span></div></div><div class="legend"><span><i class="dot blue"></i>Pago <b>${money.format(total.paid)}</b></span><span><i class="dot orange"></i>Pendente <b>${money.format(total.pending)}</b></span></div></article></section>`;
+}
+function expenseCategoryReport() {
+  const expenses = monthTransactions().filter((item) => item.type === "expense");
+  const grouped = expenses.reduce((acc, item) => {
+    const category = item.category || "Outros";
+    const current = acc.get(category) || { category, total: 0, count: 0 };
+    current.total += Number(item.amount || 0);
+    current.count += 1;
+    acc.set(category, current);
+    return acc;
+  }, new Map());
+  const total = sum(expenses);
+  const ranking = [...grouped.values()]
+    .sort((a, b) => b.total - a.total)
+    .map((entry) => ({
+      ...entry,
+      percent: total ? Math.round((entry.total / total) * 100) : 0,
+    }));
+  return { expenses, ranking, total };
+}
+function expenseInsightText(report, monthName) {
+  const [leader, second] = report.ranking;
+  if (!leader) {
+    return `Ainda não há despesas registradas em ${monthName}. Quando você adicionar seus débitos, este resumo mostrará onde seu dinheiro está mais concentrado.`;
+  }
+  if (!second) {
+    return `Em ${monthName}, todas as despesas previstas estão concentradas em ${leader.category}, que soma ${money.format(leader.total)}. Conforme novas categorias forem adicionadas, você poderá comparar o peso de cada uma.`;
+  }
+  const combinedPercent = Math.round(
+    ((leader.total + second.total) / report.total) * 100,
+  );
+  let opening = `Em ${monthName}, ${leader.category} é sua maior fonte de despesa: ${money.format(leader.total)}, ou ${leader.percent}% do total previsto.`;
+  if (leader.percent >= 50) {
+    opening = `Em ${monthName}, ${leader.category} merece atenção: sozinha, a categoria representa ${leader.percent}% das despesas previstas, somando ${money.format(leader.total)}.`;
+  } else if (leader.percent < 35) {
+    opening = `As despesas de ${monthName} estão relativamente distribuídas. Ainda assim, ${leader.category} lidera com ${money.format(leader.total)}, equivalente a ${leader.percent}% do total previsto.`;
+  }
+  return `${opening} Juntas, ${leader.category} e ${second.category} respondem por ${combinedPercent}% dos gastos do mês.`;
+}
+function renderExpenseInsights(monthName) {
+  const report = expenseCategoryReport();
+  const visibleCategories = report.ranking.slice(0, 4);
+  const categoryRows = visibleCategories.length
+    ? `<div class="expense-category-ranking" aria-label="Maiores categorias de despesa">${visibleCategories.map((entry, index) => `<button class="expense-category-row" type="button" data-expense-category="${attr(entry.category)}" aria-label="Filtrar agenda por ${attr(entry.category)}"><span class="expense-category-position">${index + 1}</span>${categoryIconBadge({ type: "expense", category: entry.category })}<span class="expense-category-copy"><span><b>${esc(entry.category)}</b><small>${entry.count} ${entry.count === 1 ? "lançamento" : "lançamentos"}</small></span><i aria-hidden="true"><span style="--category-share:${entry.percent}%"></span></i></span><strong>${money.format(entry.total)}<small>${entry.percent}% do total</small></strong></button>`).join("")}${report.ranking.length > visibleCategories.length ? `<small class="expense-category-more">+ ${report.ranking.length - visibleCategories.length} ${report.ranking.length - visibleCategories.length === 1 ? "categoria" : "categorias"} no mês</small>` : ""}</div>`
+    : `<div class="expense-insight-empty">${icon("chart")}<span>O relatório aparecerá assim que houver uma despesa neste período.</span></div>`;
+  return `<article class="panel expense-insights-panel"><div class="expense-insights-head"><div><span class="expense-insights-icon">${icon("chart")}</span><span><small>LEITURA DO MÊS</small><h2>Para onde está indo seu dinheiro</h2></span></div><span class="expense-insights-badge">Visão por categoria</span></div><div class="expense-insights-content"><div class="expense-insights-narrative"><p>${esc(expenseInsightText(report, monthName))}</p><div><span><b>${report.ranking.length}</b><small>${report.ranking.length === 1 ? "categoria" : "categorias"}</small></span><span><b>${report.expenses.length}</b><small>${report.expenses.length === 1 ? "despesa" : "despesas"}</small></span><span><b>${money.format(report.total)}</b><small>total previsto</small></span></div></div>${categoryRows}</div></article>`;
 }
 function renderDashboardGroups(items) {
   const today = todayKey();
@@ -339,6 +449,7 @@ function recordRow(item) {
 function renderCalendar(monthName) {
   if (!state.selected) return emptyManagement();
   if (state.calendarLayout === "agenda") return renderCalendarAgenda(monthName);
+  const filteredItems = filteredCalendarTransactions();
   const [year, month] = state.month.split("-").map(Number);
   const first = new Date(Date.UTC(year, month - 1, 1));
   const days = new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -349,7 +460,7 @@ function renderCalendar(monthName) {
   );
   for (let day = 1; day <= days; day++) {
     const date = `${state.month}-${String(day).padStart(2, "0")}`;
-    const items = state.transactions.filter((i) => i.dueDate === date);
+    const items = filteredItems.filter((i) => i.dueDate === date);
     cells.push(
       `<div class="day"><b>${day}</b>${items
         .slice(0, 3)
@@ -362,7 +473,7 @@ function renderCalendar(monthName) {
         )}${items.length > 3 ? `<small>+${items.length - 3} outros</small>` : ""}</div>`,
     );
   }
-  return `${calendarHeader()}<article class="panel calendar-panel"><div class="weekdays">${["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((d) => `<span>${d}</span>`).join("")}</div><div class="calendar">${cells.join("")}</div></article>`;
+  return `${calendarHeader()}${renderCalendarFilters(filteredItems)}<article class="panel calendar-panel"><div class="weekdays">${["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((d) => `<span>${d}</span>`).join("")}</div><div class="calendar">${cells.join("")}</div></article>`;
 }
 
 function calendarHeader() {
@@ -370,10 +481,21 @@ function calendarHeader() {
 }
 
 function renderCalendarAgenda() {
-  const items = monthTransactions().slice().sort((a, b) =>
-    String(a.dueDate || "").localeCompare(String(b.dueDate || "")) ||
-    String(a.description || "").localeCompare(String(b.description || ""), "pt-BR"),
-  );
+  const items = filteredCalendarTransactions();
+  if (state.calendarFilters.sort !== "date") {
+    const sortingLabel =
+      state.calendarFilters.sort === "amount-asc"
+        ? "Do menor para o maior valor"
+        : "Do maior para o menor valor";
+    const content = items.length
+      ? `<div class="agenda-sorted-head"><b>${sortingLabel}</b><span>As datas continuam visíveis em cada lançamento.</span></div><div class="agenda-items agenda-sorted-items">${items.map((item) => agendaItem(item, true)).join("")}</div>`
+      : empty(
+          calendarFiltersActive()
+            ? "Nenhum lançamento corresponde aos filtros escolhidos."
+            : "Nenhum lançamento cadastrado neste mês.",
+        );
+    return `${calendarHeader()}${renderCalendarFilters(items)}<article class="panel agenda-panel agenda-sorted-panel">${content}</article>`;
+  }
   const groups = items.reduce((acc, item) => {
     const key = item.dueDate || `${state.month}-01`;
     (acc[key] ||= []).push(item);
@@ -382,7 +504,10 @@ function renderCalendarAgenda() {
   const content = Object.entries(groups)
     .map(([date, dayItems]) => agendaDay(date, dayItems))
     .join("");
-  return `${calendarHeader()}<article class="panel agenda-panel">${content || empty("Nenhum lançamento cadastrado neste mês.")}</article>`;
+  const emptyMessage = calendarFiltersActive()
+    ? "Nenhum lançamento corresponde aos filtros escolhidos."
+    : "Nenhum lançamento cadastrado neste mês.";
+  return `${calendarHeader()}${renderCalendarFilters(items)}<article class="panel agenda-panel">${content || empty(emptyMessage)}</article>`;
 }
 
 function agendaDay(date, items) {
@@ -400,9 +525,9 @@ function agendaDay(date, items) {
   return `<section class="agenda-day ${isToday ? "today" : ""}"><header><span class="agenda-date-number">${parsed.getUTCDate()}</span><div><b>${isToday ? "Hoje" : esc(weekday)}</b><small>${esc(monthDay)}</small></div><span>${items.length} ${items.length === 1 ? "lançamento" : "lançamentos"}</span></header><div class="agenda-items">${items.map(agendaItem).join("")}</div></section>`;
 }
 
-function agendaItem(item) {
+function agendaItem(item, showDate = false) {
   const status = financialStatus(item);
-  return `<button type="button" class="agenda-item" data-edit="${item.id}">${categoryIconBadge(item)}<span class="agenda-item-copy"><b>${esc(item.description)}</b><small>${esc(item.category)}${Number(item.recurrenceTotal) > 1 ? ` · ${item.recurrenceType === "installment" ? "Parcela" : "Recorrente"} ${item.recurrenceIndex}/${item.recurrenceTotal}` : ""}</small></span><span class="agenda-item-value"><b class="${item.type === "income" ? "positive" : ""}">${item.type === "income" ? "+ " : ""}${money.format(item.amount)}</b><span class="pill ${status.className}">${status.label}</span></span></button>`;
+  return `<button type="button" class="agenda-item" data-edit="${item.id}">${categoryIconBadge(item)}<span class="agenda-item-copy"><b>${esc(item.description)}</b><small>${esc(item.category)}${showDate ? ` · ${formatDate(item.dueDate)}` : ""}${Number(item.recurrenceTotal) > 1 ? ` · ${item.recurrenceType === "installment" ? "Parcela" : "Recorrente"} ${item.recurrenceIndex}/${item.recurrenceTotal}` : ""}</small></span><span class="agenda-item-value"><b class="${item.type === "income" ? "positive" : ""}">${item.type === "income" ? "+ " : ""}${money.format(item.amount)}</b><span class="pill ${status.className}">${status.label}</span></span></button>`;
 }
 
 function renderUsers() {
@@ -455,6 +580,18 @@ function bindShell() {
         renderApp();
       }),
   );
+  document.querySelectorAll("[data-expense-category]").forEach(
+    (button) =>
+      (button.onclick = () => {
+        state.calendarFilters.expenseCategory =
+          button.dataset.expenseCategory;
+        state.calendarFilters.sort = "amount-desc";
+        state.calendarLayout = "agenda";
+        state.view = "calendar";
+        localStorage.setItem("organiza-calendar-layout", "agenda");
+        renderApp();
+      }),
+  );
   document.querySelectorAll("[data-dashboard-group]").forEach(
     (details) =>
       (details.ontoggle = () => {
@@ -468,6 +605,7 @@ function bindShell() {
   document.querySelector("#managementSelect").onchange = (e) => {
     state.selected =
       state.managements.find((i) => i.id === e.target.value) || null;
+    state.calendarFilters = { query: "", expenseCategory: "", sort: "date" };
     observeTransactions();
     renderApp();
   };
@@ -560,6 +698,51 @@ function bindShell() {
         renderApp();
       }
     });
+  const transactionSearch = document.querySelector("#transactionSearch");
+  if (transactionSearch) {
+    transactionSearch.oninput = (event) => {
+      const value = event.currentTarget.value;
+      const cursor = event.currentTarget.selectionStart ?? value.length;
+      state.calendarFilters.query = value;
+      window.clearTimeout(calendarSearchTimer);
+      calendarSearchTimer = window.setTimeout(() => {
+        if (state.view !== "calendar") return;
+        renderApp();
+        requestAnimationFrame(() => {
+          const nextInput = document.querySelector("#transactionSearch");
+          nextInput?.focus({ preventScroll: true });
+          nextInput?.setSelectionRange(cursor, cursor);
+        });
+      }, 140);
+    };
+  }
+  document
+    .querySelector("#expenseCategoryFilter")
+    ?.addEventListener("change", (event) => {
+      state.calendarFilters.expenseCategory = event.target.value;
+      renderApp();
+    });
+  document
+    .querySelector("#transactionSort")
+    ?.addEventListener("change", (event) => {
+      state.calendarFilters.sort = event.target.value;
+      if (state.calendarFilters.sort !== "date") {
+        state.calendarLayout = "agenda";
+        localStorage.setItem("organiza-calendar-layout", "agenda");
+      }
+      renderApp();
+    });
+  document
+    .querySelector("#clearCalendarFilters")
+    ?.addEventListener("click", () => {
+      window.clearTimeout(calendarSearchTimer);
+      state.calendarFilters = {
+        query: "",
+        expenseCategory: "",
+        sort: "date",
+      };
+      renderApp();
+    });
   document.querySelector("#monthToday")?.addEventListener("click", () => {
     state.month = new Date().toISOString().slice(0, 7);
     renderApp();
@@ -568,6 +751,12 @@ function bindShell() {
     (button) =>
       (button.onclick = () => {
         state.calendarLayout = button.dataset.calendarLayout;
+        if (
+          state.calendarLayout === "grid" &&
+          state.calendarFilters.sort !== "date"
+        ) {
+          state.calendarFilters.sort = "date";
+        }
         localStorage.setItem("organiza-calendar-layout", state.calendarLayout);
         renderApp();
       }),
@@ -1102,6 +1291,10 @@ function icon(name) {
     "rotate-ccw": '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
     "shopping-bag":
       '<path d="M5 8h14l-1 13H6L5 8Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/>',
+    search:
+      '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
+    chart:
+      '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
     palette:
       '<path d="M12 3a9 9 0 0 0 0 18h1.5a1.5 1.5 0 0 0 0-3H12a2 2 0 0 1 0-4h4a5 5 0 0 0 0-10Z"/><circle cx="7.5" cy="10.5" r=".7"/><circle cx="10" cy="7" r=".7"/><circle cx="14" cy="7" r=".7"/>',
     monitor:
