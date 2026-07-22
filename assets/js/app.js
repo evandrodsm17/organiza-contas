@@ -50,10 +50,12 @@ const categories = {
     "Educação",
     "Lazer",
     "Impostos",
+    "Acordos e dívidas",
     "Outros",
   ],
   income: [
     "Salário",
+    "Aluguel",
     "Freelance",
     "Benefício",
     "Rendimento",
@@ -77,10 +79,12 @@ const categoryIcons = {
     Educação: "book",
     Lazer: "gamepad",
     Impostos: "receipt",
+    "Acordos e dívidas": "handshake",
     Outros: "tag",
   },
   income: {
     Salário: "banknote",
+    Aluguel: "home",
     Freelance: "laptop",
     Benefício: "gift",
     Rendimento: "trending-up",
@@ -1614,6 +1618,8 @@ function icon(name) {
       '<path d="M8 8h8a5 5 0 0 1 4.8 6.4l-1 3.2a2 2 0 0 1-3.3.8L14.5 16h-5l-2 2.4a2 2 0 0 1-3.3-.8l-1-3.2A5 5 0 0 1 8 8Z"/><path d="M7 12v4M5 14h4M16 13h.01M18 15h.01"/>',
     receipt:
       '<path d="M6 2v20l3-2 3 2 3-2 3 2V2l-3 2-3-2-3 2Z"/><path d="M9 9h6M9 13h6M9 17h4"/>',
+    handshake:
+      '<path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.9-3.9a2 2 0 0 0-2.8 0l-.8.8a1 1 0 0 1-1.4 0l-.2-.2a2 2 0 0 1 0-2.8l2.3-2.2"/><path d="m18 2 3 3-6 6M2 5l3-3 6 6M6 12l5 5M4 14l5 5M2 16l3 3"/>',
     tag: '<path d="m20 13-7 7L4 11V4h7l9 9Z"/><circle cx="8.5" cy="8.5" r="1.5"/>',
     banknote:
       '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M7 9H6a1 1 0 0 1-1-1M17 15h1a1 1 0 0 1 1 1"/>',
