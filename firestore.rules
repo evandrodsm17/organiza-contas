@@ -45,6 +45,17 @@ service cloud.firestore {
         allow update: if editor(managementId);
         allow delete: if editor(managementId);
       }
+
+      match /cards/{cardId} {
+        allow read: if member(managementId);
+        allow create: if editor(managementId)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.active == true;
+        allow update: if editor(managementId)
+          && request.resource.data.createdBy == resource.data.createdBy;
+        // Cartões são arquivados para preservar o histórico dos lançamentos.
+        allow delete: if false;
+      }
     }
   }
 }

@@ -1,4 +1,4 @@
-# Configuração do Conta Clara no Firebase
+# Configuração do OrganizaContas no Firebase
 
 A interface usa HTML, CSS e JavaScript puro. Authentication e Firestore são acessados pelo SDK CDN. A criação de contas usa uma segunda sessão isolada do Authentication para não desconectar o master.
 
@@ -10,6 +10,7 @@ A interface usa HTML, CSS e JavaScript puro. Authentication e Firestore são ace
 - calendários financeiros compartilhados;
 - papéis de proprietário, editor e somente leitura;
 - entradas e débitos categorizados;
+- cartões compartilhados por gerenciamento, com identificação das faturas;
 - vencimento, data planejada e data real de pagamento/recebimento independentes;
 - status pendente/pago;
 - estrutura preparada para comprovantes quando o Storage for ativado;
@@ -61,6 +62,7 @@ users/{uid}
 managements/{managementId}
   memberIds[]
   memberRoles.{uid}
+  cards/{cardId}
   transactions/{transactionId}
 Storage: managements/{managementId}/receipts/{file}
 ```
@@ -74,6 +76,8 @@ As senhas nunca são gravadas no Firestore. Elas pertencem exclusivamente ao Fir
 - O Authentication permite cadastro técnico de contas, mas uma conta sem perfil autorizado não consegue acessar nenhum dado da aplicação.
 - Somente o proprietário compartilha um gerenciamento.
 - Participantes `viewer` podem consultar, mas não alterar lançamentos ou anexos.
+- Cartões são arquivados, não excluídos, para preservar o histórico das faturas.
+- Nunca armazene número completo, validade ou CVV de cartões; o cadastro contém apenas nome, titular e aparência.
 - Desativar um perfil bloqueia o aplicativo pelas regras, mas não exclui sua conta do Authentication.
 - Para produção, habilite App Check e defina uma política de backup/exportação do Firestore.
 

@@ -72,6 +72,37 @@ export const FirebaseService = {
     return onSnapshot(query(collection(useServices().db, "managements", managementId, "transactions"), orderBy("dueDate")),
       (snap) => callback(snap.docs.map((item) => ({ id: item.id, ...item.data() }))), onError);
   },
+  observeCards(managementId, callback, onError) {
+    return onSnapshot(collection(useServices().db, "managements", managementId, "cards"),
+      (snap) => callback(snap.docs
+        .map((item) => ({ id: item.id, ...item.data() }))
+        .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR"))), onError);
+  },
+  saveCard(managementId, data, uid, id) {
+    const payload = {
+      name: data.name.trim(),
+      holderName: data.holderName.trim(),
+      logoUrl: data.logoUrl?.trim() || "",
+      backgroundColor: data.backgroundColor,
+      closingDay: data.closingDay ? Number(data.closingDay) : null,
+      dueDay: data.dueDay ? Number(data.dueDay) : null,
+      active: data.active !== false,
+      updatedAt: serverTimestamp(),
+      updatedBy: uid
+    };
+    if (id) {
+      const cardRef = doc(useServices().db, "managements", managementId, "cards", id);
+      return updateDoc(cardRef, payload).then(() => cardRef);
+    }
+    return addDoc(collection(useServices().db, "managements", managementId, "cards"), {
+      ...payload, createdAt: serverTimestamp(), createdBy: uid
+    });
+  },
+  setCardActive(managementId, cardId, active, uid) {
+    return updateDoc(doc(useServices().db, "managements", managementId, "cards", cardId), {
+      active: Boolean(active), updatedAt: serverTimestamp(), updatedBy: uid
+    });
+  },
   saveTransaction(managementId, data, uid, id) {
     const payload = { ...data, amount: Number(data.amount), updatedAt: serverTimestamp(), updatedBy: uid };
     if (id) return updateDoc(doc(useServices().db, "managements", managementId, "transactions", id), payload);
@@ -141,6 +172,8 @@ export const FirebaseService = {
         recurrenceBaseDescription: baseDescription,
         amount: Number(data.amount),
         category: data.category,
+        cardId: data.cardId || "",
+        cardSnapshot: data.cardSnapshot || null,
         dueDate: entry.id === item.id || dueDateChanged ? shiftDateByMonths(data.dueDate, offset) : target.dueDate,
         plannedDate: entry.id === item.id || plannedDateChanged ? shiftDateByMonths(data.plannedDate, offset) : (target.plannedDate || ""),
         notes: data.notes || "",

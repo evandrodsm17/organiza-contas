@@ -17,17 +17,19 @@ const state = {
   managements: [],
   selected: null,
   transactions: [],
+  cards: [],
   month: new Date().toISOString().slice(0, 7),
   view: "dashboard",
   calendarLayout:
     localStorage.getItem("organiza-calendar-layout") ||
     (matchMedia("(max-width: 760px)").matches ? "agenda" : "grid"),
-  calendarFilters: { query: "", expenseCategory: "", sort: "date" },
+  calendarFilters: { query: "", expenseCategory: "", cardId: "", sort: "date" },
   dashboardGroupOpen: { upcoming: true, previous: false },
   users: [],
 };
 let stopManagements = () => {},
   stopTransactions = () => {},
+  stopCards = () => {},
   stopUsers = () => {};
 let calendarSearchTimer = 0;
 document.documentElement.dataset.theme =
@@ -104,6 +106,10 @@ FirebaseService.observeAuth(async (user) => {
   state.user = user;
   if (!user) {
     state.profile = null;
+    state.managements = [];
+    state.selected = null;
+    state.transactions = [];
+    state.cards = [];
     renderPublic();
     return;
   }
@@ -123,8 +129,9 @@ FirebaseService.observeAuth(async (user) => {
 function cleanupObservers() {
   stopManagements();
   stopTransactions();
+  stopCards();
   stopUsers();
-  stopManagements = stopTransactions = stopUsers = () => {};
+  stopManagements = stopTransactions = stopCards = stopUsers = () => {};
 }
 
 function renderPublic(showLogin = false) {
@@ -192,7 +199,7 @@ function observeManagements() {
       const selectedId = state.selected?.id;
       state.selected =
         items.find((item) => item.id === selectedId) || items[0] || null;
-      if (state.selected?.id !== selectedId) observeTransactions();
+      if (state.selected?.id !== selectedId) observeSelectedManagement();
       renderApp();
     },
     firebaseError,
@@ -210,6 +217,27 @@ function observeTransactions() {
     },
     firebaseError,
   );
+}
+
+function observeCards() {
+  stopCards();
+  state.cards = [];
+  if (!state.selected) return;
+  stopCards = FirebaseService.observeCards(
+    state.selected.id,
+    (items) => {
+      state.cards = items;
+      const recordForm = document.querySelector("#recordForm");
+      if (recordForm) refreshRecordCardField(recordForm);
+      else renderApp();
+    },
+    firebaseError,
+  );
+}
+
+function observeSelectedManagement() {
+  observeTransactions();
+  observeCards();
 }
 
 function renderApp() {
@@ -266,11 +294,69 @@ function normalizeSearch(value = "") {
     .toLocaleLowerCase("pt-BR")
     .trim();
 }
+function cardById(cardId) {
+  return state.cards.find((card) => card.id === cardId) || null;
+}
+function cardNameFor(item) {
+  if (item?.category !== "Cartão") return "";
+  return (
+    cardById(item.cardId)?.name ||
+    item.cardSnapshot?.name ||
+    "Cartão não informado"
+  );
+}
+function categoryMeta(item) {
+  const cardName = cardNameFor(item);
+  return cardName ? `${item.category} · ${cardName}` : item.category || "Outros";
+}
+function validCardColor(value = "") {
+  return /^#[0-9a-f]{6}$/i.test(value) ? value : "#3157d5";
+}
+function safeLogoUrl(value = "") {
+  try {
+    const url = new URL(String(value).trim());
+    return url.protocol === "https:" ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+function cardInkColor(background) {
+  const hex = validCardColor(background).slice(1);
+  const channels = [0, 2, 4].map((offset) => {
+    const value = Number.parseInt(hex.slice(offset, offset + 2), 16) / 255;
+    return value <= 0.03928
+      ? value / 12.92
+      : Math.pow((value + 0.055) / 1.055, 2.4);
+  });
+  const luminance =
+    0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+  return luminance > 0.179 ? "#000000" : "#ffffff";
+}
+function cardSnapshot(card) {
+  return card
+    ? {
+        name: card.name,
+        holderName: card.holderName || "",
+        logoUrl: card.logoUrl || "",
+        backgroundColor: validCardColor(card.backgroundColor),
+      }
+    : null;
+}
+function cardOptions(selectedId = "", includeArchived = true) {
+  return state.cards
+    .filter((card) => card.active !== false || (includeArchived && card.id === selectedId))
+    .map(
+      (card) =>
+        `<option value="${attr(card.id)}" ${card.id === selectedId ? "selected" : ""}>${esc(card.name)}${card.active === false ? " (arquivado)" : ""}</option>`,
+    )
+    .join("");
+}
 function calendarFiltersActive() {
   const filters = state.calendarFilters;
   return Boolean(
     filters.query.trim() ||
       filters.expenseCategory ||
+      filters.cardId ||
       filters.sort !== "date",
   );
 }
@@ -289,6 +375,9 @@ function filteredCalendarTransactions() {
         item.type === "expense" &&
         item.category === filters.expenseCategory,
     );
+  }
+  if (filters.cardId) {
+    items = items.filter((item) => item.cardId === filters.cardId);
   }
   return items.sort((a, b) => {
     if (filters.sort === "amount-asc" || filters.sort === "amount-desc") {
@@ -319,7 +408,11 @@ function renderCalendarFilters(filteredItems) {
   const filters = state.calendarFilters;
   const total = monthTransactions().length;
   const resultLabel = filteredItems.length === 1 ? "resultado" : "resultados";
-  return `<section class="calendar-filters" aria-label="Filtros dos lançamentos"><div class="calendar-filter-fields"><label class="calendar-search-field"><span>Buscar por nome</span><div>${icon("search")}<input id="transactionSearch" type="search" value="${attr(filters.query)}" placeholder="Ex.: aluguel, energia..." autocomplete="off"></div></label><label><span>Categoria de despesa</span><select id="expenseCategoryFilter"><option value="">Todas as categorias</option>${expenseFilterCategories().map((category) => `<option value="${attr(category)}" ${filters.expenseCategory === category ? "selected" : ""}>${esc(category)}</option>`).join("")}</select></label><label><span>Ordenar</span><select id="transactionSort"><option value="date" ${filters.sort === "date" ? "selected" : ""}>Data: mais antiga</option><option value="amount-asc" ${filters.sort === "amount-asc" ? "selected" : ""}>Valor: menor primeiro</option><option value="amount-desc" ${filters.sort === "amount-desc" ? "selected" : ""}>Valor: maior primeiro</option></select></label></div><div class="calendar-filter-meta"><span aria-live="polite"><b>${filteredItems.length}</b> ${resultLabel} de ${total}</span>${calendarFiltersActive() ? '<button id="clearCalendarFilters" class="calendar-filter-clear" type="button">Limpar filtros</button>' : ""}</div></section>`;
+  const cardFilter =
+    filters.expenseCategory === "Cartão"
+      ? `<label><span>Cartão</span><select id="cardFilter"><option value="">Todos os cartões</option>${state.cards.map((card) => `<option value="${attr(card.id)}" ${filters.cardId === card.id ? "selected" : ""}>${esc(card.name)}${card.active === false ? " (arquivado)" : ""}</option>`).join("")}</select></label>`
+      : "";
+  return `<section class="calendar-filters" aria-label="Filtros dos lançamentos"><div class="calendar-filter-fields ${cardFilter ? "has-card-filter" : ""}"><label class="calendar-search-field"><span>Buscar por nome</span><div>${icon("search")}<input id="transactionSearch" type="search" value="${attr(filters.query)}" placeholder="Ex.: aluguel, energia..." autocomplete="off"></div></label><label><span>Categoria de despesa</span><select id="expenseCategoryFilter"><option value="">Todas as categorias</option>${expenseFilterCategories().map((category) => `<option value="${attr(category)}" ${filters.expenseCategory === category ? "selected" : ""}>${esc(category === "Cartão" ? "Fatura de cartão" : category)}</option>`).join("")}</select></label>${cardFilter}<label><span>Ordenar</span><select id="transactionSort"><option value="date" ${filters.sort === "date" ? "selected" : ""}>Data: mais antiga</option><option value="amount-asc" ${filters.sort === "amount-asc" ? "selected" : ""}>Valor: menor primeiro</option><option value="amount-desc" ${filters.sort === "amount-desc" ? "selected" : ""}>Valor: maior primeiro</option></select></label></div><div class="calendar-filter-meta"><span aria-live="polite"><b>${filteredItems.length}</b> ${resultLabel} de ${total}</span>${calendarFiltersActive() ? '<button id="clearCalendarFilters" class="calendar-filter-clear" type="button">Limpar filtros</button>' : ""}</div></section>`;
 }
 function monthControl() {
   return `<div class="month-control"><button class="month-arrow" data-month="-1" aria-label="Mês anterior" title="Mês anterior">${icon("chevron-left")}</button><label class="month-field"><span>Período</span><input id="monthInput" type="month" value="${state.month}" aria-label="Escolher mês e ano"></label><button class="month-arrow" data-month="1" aria-label="Próximo mês" title="Próximo mês">${icon("chevron-right")}</button><button class="month-today" id="monthToday" type="button">Hoje</button></div>`;
@@ -361,8 +454,21 @@ function expenseInsightText(report, monthName) {
   if (!leader) {
     return `Ainda não há despesas registradas em ${monthName}. Quando você adicionar seus débitos, este resumo mostrará onde seu dinheiro está mais concentrado.`;
   }
+  const cardExpenses = report.expenses.filter(
+    (item) => item.category === "Cartão",
+  );
+  const cardGroups = cardExpenses.reduce((acc, item) => {
+    const name = cardNameFor(item);
+    acc.set(name, (acc.get(name) || 0) + Number(item.amount || 0));
+    return acc;
+  }, new Map());
+  const cardRanking = [...cardGroups.entries()].sort((a, b) => b[1] - a[1]);
+  const cardTotal = sum(cardExpenses);
+  const cardNote = cardRanking.length
+    ? ` Entre as faturas, ${cardRanking[0][0]} concentra ${Math.round((cardRanking[0][1] / cardTotal) * 100)}% desse valor.`
+    : "";
   if (!second) {
-    return `Em ${monthName}, todas as despesas previstas estão concentradas em ${leader.category}, que soma ${money.format(leader.total)}. Conforme novas categorias forem adicionadas, você poderá comparar o peso de cada uma.`;
+    return `Em ${monthName}, todas as despesas previstas estão concentradas em ${leader.category}, que soma ${money.format(leader.total)}. Conforme novas categorias forem adicionadas, você poderá comparar o peso de cada uma.${cardNote}`;
   }
   const combinedPercent = Math.round(
     ((leader.total + second.total) / report.total) * 100,
@@ -373,7 +479,7 @@ function expenseInsightText(report, monthName) {
   } else if (leader.percent < 35) {
     opening = `As despesas de ${monthName} estão relativamente distribuídas. Ainda assim, ${leader.category} lidera com ${money.format(leader.total)}, equivalente a ${leader.percent}% do total previsto.`;
   }
-  return `${opening} Juntas, ${leader.category} e ${second.category} respondem por ${combinedPercent}% dos gastos do mês.`;
+  return `${opening} Juntas, ${leader.category} e ${second.category} respondem por ${combinedPercent}% dos gastos do mês.${cardNote}`;
 }
 function renderExpenseInsights(monthName) {
   const report = expenseCategoryReport();
@@ -428,7 +534,7 @@ function renderBudgetScore(expense) {
 }
 function renderTodayAlert(items) {
   const total = sum(items);
-  return `<section class="today-alert" aria-labelledby="todayDueTitle"><div class="today-alert-heading"><span class="today-alert-icon" aria-hidden="true">!</span><div><strong id="todayDueTitle">Vence hoje</strong><small>${items.length} ${items.length === 1 ? "despesa pendente" : "despesas pendentes"} · ${money.format(total)}</small></div></div><div class="today-alert-list">${items.map((item) => `<button class="today-alert-item" type="button" data-edit="${item.id}"><span><b>${esc(item.description)}</b><small>${esc(item.category)} · Vence hoje</small></span><strong>${money.format(item.amount)}</strong><span class="today-alert-open">Abrir</span></button>`).join("")}</div></section>`;
+  return `<section class="today-alert" aria-labelledby="todayDueTitle"><div class="today-alert-heading"><span class="today-alert-icon" aria-hidden="true">!</span><div><strong id="todayDueTitle">Vence hoje</strong><small>${items.length} ${items.length === 1 ? "despesa pendente" : "despesas pendentes"} · ${money.format(total)}</small></div></div><div class="today-alert-list">${items.map((item) => `<button class="today-alert-item" type="button" data-edit="${item.id}"><span><b>${esc(item.description)}</b><small>${esc(categoryMeta(item))} · Vence hoje</small></span><strong>${money.format(item.amount)}</strong><span class="today-alert-open">Abrir</span></button>`).join("")}</div></section>`;
 }
 function summary(label, value, color, icon, detailType = "") {
   const tag = detailType ? "button" : "article";
@@ -443,7 +549,7 @@ function recordRow(item) {
     Number(item.recurrenceTotal) > 1
       ? ` · ${item.recurrenceType === "installment" ? "Parcela" : "Recorrente"} ${item.recurrenceIndex}/${item.recurrenceTotal}`
       : "";
-  return `<button class="record-row" data-edit="${item.id}">${categoryIconBadge(item)}<div><b>${esc(item.description)}</b><small>${esc(item.category)} · ${formatDate(item.dueDate)}${recurrence}</small></div><strong class="${item.type === "income" ? "positive" : ""}">${item.type === "income" ? "+ " : ""}${money.format(item.amount)}</strong><span class="pill ${status.className}">${status.label}</span></button>`;
+  return `<button class="record-row" data-edit="${item.id}">${categoryIconBadge(item)}<div><b>${esc(item.description)}</b><small>${esc(categoryMeta(item))} · ${formatDate(item.dueDate)}${recurrence}</small></div><strong class="${item.type === "income" ? "positive" : ""}">${item.type === "income" ? "+ " : ""}${money.format(item.amount)}</strong><span class="pill ${status.className}">${status.label}</span></button>`;
 }
 
 function renderCalendar(monthName) {
@@ -466,7 +572,7 @@ function renderCalendar(monthName) {
         .slice(0, 3)
         .map(
           (i) =>
-            `<button data-edit="${i.id}" class="day-item ${calendarStatus(i)}" title="${attr(i.description)}"><span>${i.status === "paid" ? '<i class="paid-check">✓</i>' : ""}${esc(i.description)}</span><strong>${money.format(i.amount)}</strong></button>`,
+            `<button data-edit="${i.id}" class="day-item ${calendarStatus(i)}" title="${attr(`${i.description} · ${categoryMeta(i)}`)}"><span>${i.status === "paid" ? '<i class="paid-check">✓</i>' : ""}${esc(i.description)}</span><strong>${money.format(i.amount)}</strong></button>`,
         )
         .join(
           "",
@@ -527,12 +633,40 @@ function agendaDay(date, items) {
 
 function agendaItem(item, showDate = false) {
   const status = financialStatus(item);
-  return `<button type="button" class="agenda-item" data-edit="${item.id}">${categoryIconBadge(item)}<span class="agenda-item-copy"><b>${esc(item.description)}</b><small>${esc(item.category)}${showDate ? ` · ${formatDate(item.dueDate)}` : ""}${Number(item.recurrenceTotal) > 1 ? ` · ${item.recurrenceType === "installment" ? "Parcela" : "Recorrente"} ${item.recurrenceIndex}/${item.recurrenceTotal}` : ""}</small></span><span class="agenda-item-value"><b class="${item.type === "income" ? "positive" : ""}">${item.type === "income" ? "+ " : ""}${money.format(item.amount)}</b><span class="pill ${status.className}">${status.label}</span></span></button>`;
+  return `<button type="button" class="agenda-item" data-edit="${item.id}">${categoryIconBadge(item)}<span class="agenda-item-copy"><b>${esc(item.description)}</b><small>${esc(categoryMeta(item))}${showDate ? ` · ${formatDate(item.dueDate)}` : ""}${Number(item.recurrenceTotal) > 1 ? ` · ${item.recurrenceType === "installment" ? "Parcela" : "Recorrente"} ${item.recurrenceIndex}/${item.recurrenceTotal}` : ""}</small></span><span class="agenda-item-value"><b class="${item.type === "income" ? "positive" : ""}">${item.type === "income" ? "+ " : ""}${money.format(item.amount)}</b><span class="pill ${status.className}">${status.label}</span></span></button>`;
 }
 
 function renderUsers() {
   if (state.profile.role !== "master") return "";
   return `<div class="content-head"><div><strong>Usuários autorizados</strong><span>Somente o master pode criar e alterar acessos.</span></div><button class="btn btn-primary" id="createUser">+ Criar usuário</button></div><article class="panel"><div class="user-list">${state.users.map((u) => `<div class="user-row"><span>${initials(u.name)}</span><div><b>${esc(u.name)}</b><small>${esc(u.email)}</small></div><label class="switch"><input type="checkbox" data-access="${u.id}" data-field="canCreateManagement" ${u.canCreateManagement ? "checked" : ""} ${u.role === "master" ? "disabled" : ""}><i></i> Pode criar gerenciamentos</label><label class="switch"><input type="checkbox" data-access="${u.id}" data-field="active" ${u.active ? "checked" : ""} ${u.role === "master" ? "disabled" : ""}><i></i> Ativo</label><span class="role">${u.role}</span></div>`).join("")}</div></article>`;
+}
+function renderCardVisual(card, preview = false) {
+  const background = validCardColor(card.backgroundColor);
+  const ink = cardInkColor(background);
+  const logoUrl = safeLogoUrl(card.logoUrl);
+  const footer = [
+    card.closingDay ? `Fecha dia ${card.closingDay}` : "",
+    card.dueDay ? `Vence dia ${card.dueDay}` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return `<div class="payment-card ${preview ? "payment-card-preview" : ""}" style="--card-bg:${attr(background)};--card-ink:${attr(ink)}"><div class="payment-card-top"><span class="payment-card-brand">${icon("credit-card")}<b>${esc(card.name || "Nome do cartão")}</b></span><span class="payment-card-logo-wrap"><span class="payment-card-logo-fallback">${initials(card.name || "Cartão")}</span>${logoUrl ? `<img class="payment-card-logo" data-card-logo src="${attr(logoUrl)}" alt="Logo de ${attr(card.name || "cartão")}">` : ""}</span></div><div class="payment-card-bottom"><span><small>TITULAR</small><b>${esc(card.holderName || "Nome do titular")}</b></span>${footer ? `<small>${esc(footer)}</small>` : ""}</div></div>`;
+}
+function renderCardsSettings() {
+  if (!state.selected) {
+    return `<div class="settings-empty"><p>Selecione um gerenciamento para cadastrar cartões.</p></div>`;
+  }
+  const activeCards = state.cards.filter((card) => card.active !== false);
+  const archivedCards = state.cards.filter((card) => card.active === false);
+  const group = (cards, archived = false) =>
+    cards
+      .map(
+        (card) =>
+          `<article class="managed-card ${archived ? "is-archived" : ""}">${renderCardVisual(card)}<div class="managed-card-meta"><span><b>${esc(card.name)}</b><small>${esc(card.holderName || "Titular não informado")}</small></span>${canEdit() ? `<div><button class="card-action" type="button" data-edit-card="${card.id}" aria-label="Editar ${attr(card.name)}">${icon("edit")} Editar</button><button class="card-action" type="button" data-toggle-card="${card.id}" data-card-active="${archived ? "true" : "false"}">${archived ? "Reativar" : "Arquivar"}</button></div>` : ""}</div></article>`,
+      )
+      .join("");
+  const emptyCards = `<div class="cards-empty">${icon("credit-card")}<div><b>Nenhum cartão cadastrado</b><span>Cadastre seus cartões para identificar cada fatura no calendário.</span></div></div>`;
+  return `${activeCards.length ? `<div class="cards-gallery">${group(activeCards)}</div>` : emptyCards}${archivedCards.length ? `<details class="archived-cards"><summary>${archivedCards.length} ${archivedCards.length === 1 ? "cartão arquivado" : "cartões arquivados"}</summary><div class="cards-gallery">${group(archivedCards, true)}</div></details>` : ""}`;
 }
 function renderSettings(monthName) {
   const limit = expenseLimitForMonth();
@@ -544,7 +678,7 @@ function renderSettings(monthName) {
     ? `<div class="settings-budget-preview"><span><small>Despesas previstas</small><b>${money.format(currentExpense)}</b></span><span><small>Limite atual</small><b>${limit ? money.format(limit) : "Não definido"}</b></span></div><form class="expense-limit-form" id="expenseLimitForm"><label>Valor máximo para ${esc(monthName)}<div class="currency-field"><span>R$</span><input name="limit" type="number" min="1" step="0.01" value="${limit || ""}" placeholder="Ex.: 3500,00" inputmode="decimal" ${!canEdit() ? "disabled" : ""}></div></label>${canEdit() ? `<div class="settings-actions"><button class="btn btn-primary" type="submit">Salvar limite</button>${limit ? '<button class="btn btn-soft" id="clearExpenseLimit" type="button">Remover limite</button>' : ""}</div>` : '<p class="settings-readonly">Seu acesso permite visualizar, mas não alterar este limite.</p>'}</form>`
     : `<div class="settings-empty"><p>Selecione ou crie um gerenciamento para definir o limite mensal.</p></div>`;
   const managementActions = `${canEdit() ? `<button class="btn btn-soft" id="editManagement" type="button">${icon("edit")} Editar gerenciamento</button>` : ""}${isOwner() ? `<button class="btn btn-soft" id="shareBtn" type="button">${icon("share")} Compartilhar acesso</button>` : ""}${canCreate ? `<button class="btn btn-primary" id="newManagement" type="button">${icon("plus")} Novo gerenciamento</button>` : ""}`;
-  return `<div class="settings-grid"><section class="panel settings-card settings-budget"><div class="settings-card-head"><span class="settings-card-icon">${icon("gauge")}</span><div><h2>Planejamento mensal</h2><p>Defina o teto de despesas para cada mês.</p></div><label class="settings-month">Período<input id="settingsMonthInput" type="month" value="${state.month}" aria-label="Mês do limite de despesas"></label></div>${budgetContent}</section><section class="panel settings-card"><div class="settings-card-head"><span class="settings-card-icon">${icon("wallet")}</span><div><h2>Gerenciamentos</h2><p>Crie, edite e compartilhe seus espaços financeiros.</p></div></div>${state.selected ? `<div class="settings-management"><small>Selecionado agora</small><b>${esc(state.selected.name)}</b><span>${esc(state.selected.description || "Sem descrição")}</span></div>` : '<div class="settings-empty"><p>Nenhum gerenciamento selecionado.</p></div>'}<div class="settings-actions settings-actions-wrap">${managementActions || '<span class="settings-readonly">Sem ações disponíveis para este acesso.</span>'}</div></section><section class="panel settings-card"><div class="settings-card-head"><span class="settings-card-icon">${icon("palette")}</span><div><h2>Aparência</h2><p>Escolha como o OrganizaContas deve ser exibido.</p></div></div><div class="theme-options" role="group" aria-label="Escolher tema"><button type="button" data-theme-choice="light" class="${preference === "light" ? "active" : ""}">${icon("sun")}<span><b>Claro</b><small>Sempre claro</small></span></button><button type="button" data-theme-choice="dark" class="${preference === "dark" ? "active" : ""}">${icon("moon")}<span><b>Escuro</b><small>Sempre escuro</small></span></button><button type="button" data-theme-choice="system" class="${preference === "system" ? "active" : ""}">${icon("monitor")}<span><b>Sistema</b><small>Segue o aparelho</small></span></button></div></section>${state.profile.role === "master" ? `<section class="panel settings-card settings-users-card"><div class="settings-card-head"><span class="settings-card-icon">${icon("users")}</span><div><h2>Usuários e permissões</h2><p>Crie acessos e defina quem pode criar gerenciamentos.</p></div></div><button class="settings-link" type="button" data-go="users"><span>Abrir gestão de usuários</span><b>›</b></button></section>` : ""}</div>`;
+  return `<div class="settings-grid"><section class="panel settings-card settings-budget"><div class="settings-card-head"><span class="settings-card-icon">${icon("gauge")}</span><div><h2>Planejamento mensal</h2><p>Defina o teto de despesas para cada mês.</p></div><label class="settings-month">Período<input id="settingsMonthInput" type="month" value="${state.month}" aria-label="Mês do limite de despesas"></label></div>${budgetContent}</section><section class="panel settings-card settings-cards"><div class="settings-card-head"><span class="settings-card-icon">${icon("credit-card")}</span><div><h2>Meus cartões</h2><p>Identifique as faturas pelo cartão, titular e aparência.</p></div>${state.selected && canEdit() ? `<button class="btn btn-primary settings-card-cta" id="newCard" type="button">${icon("plus")} Adicionar cartão</button>` : ""}</div>${renderCardsSettings()}</section><section class="panel settings-card"><div class="settings-card-head"><span class="settings-card-icon">${icon("wallet")}</span><div><h2>Gerenciamentos</h2><p>Crie, edite e compartilhe seus espaços financeiros.</p></div></div>${state.selected ? `<div class="settings-management"><small>Selecionado agora</small><b>${esc(state.selected.name)}</b><span>${esc(state.selected.description || "Sem descrição")}</span></div>` : '<div class="settings-empty"><p>Nenhum gerenciamento selecionado.</p></div>'}<div class="settings-actions settings-actions-wrap">${managementActions || '<span class="settings-readonly">Sem ações disponíveis para este acesso.</span>'}</div></section><section class="panel settings-card"><div class="settings-card-head"><span class="settings-card-icon">${icon("palette")}</span><div><h2>Aparência</h2><p>Escolha como o OrganizaContas deve ser exibido.</p></div></div><div class="theme-options" role="group" aria-label="Escolher tema"><button type="button" data-theme-choice="light" class="${preference === "light" ? "active" : ""}">${icon("sun")}<span><b>Claro</b><small>Sempre claro</small></span></button><button type="button" data-theme-choice="dark" class="${preference === "dark" ? "active" : ""}">${icon("moon")}<span><b>Escuro</b><small>Sempre escuro</small></span></button><button type="button" data-theme-choice="system" class="${preference === "system" ? "active" : ""}">${icon("monitor")}<span><b>Sistema</b><small>Segue o aparelho</small></span></button></div></section>${state.profile.role === "master" ? `<section class="panel settings-card settings-users-card"><div class="settings-card-head"><span class="settings-card-icon">${icon("users")}</span><div><h2>Usuários e permissões</h2><p>Crie acessos e defina quem pode criar gerenciamentos.</p></div></div><button class="settings-link" type="button" data-go="users"><span>Abrir gestão de usuários</span><b>›</b></button></section>` : ""}</div>`;
 }
 function emptyManagement() {
   return `<section class="empty-state"><div>◫</div><h2>Comece criando um gerenciamento</h2><p>Você poderá organizar as contas da casa e compartilhar o calendário com outra pessoa.</p>${state.profile.canCreateManagement || state.profile.role === "master" ? '<button class="btn btn-primary" id="emptyCreate">Criar gerenciamento</button>' : "<p>Peça ao administrador permissão para criar gerenciamentos.</p>"}</section>`;
@@ -554,6 +688,12 @@ function empty(text) {
 }
 
 function bindShell() {
+  document.querySelectorAll("[data-card-logo]").forEach(
+    (image) =>
+      (image.onerror = () => {
+        image.hidden = true;
+      }),
+  );
   document
     .querySelectorAll("#logout, #mobileNavLogout")
     .forEach((button) => (button.onclick = openLogoutModal));
@@ -585,6 +725,7 @@ function bindShell() {
       (button.onclick = () => {
         state.calendarFilters.expenseCategory =
           button.dataset.expenseCategory;
+        state.calendarFilters.cardId = "";
         state.calendarFilters.sort = "amount-desc";
         state.calendarLayout = "agenda";
         state.view = "calendar";
@@ -605,8 +746,8 @@ function bindShell() {
   document.querySelector("#managementSelect").onchange = (e) => {
     state.selected =
       state.managements.find((i) => i.id === e.target.value) || null;
-    state.calendarFilters = { query: "", expenseCategory: "", sort: "date" };
-    observeTransactions();
+    state.calendarFilters = { query: "", expenseCategory: "", cardId: "", sort: "date" };
+    observeSelectedManagement();
     renderApp();
   };
   document
@@ -618,6 +759,42 @@ function bindShell() {
   document
     .querySelector("#emptyCreate")
     ?.addEventListener("click", () => openManagementModal());
+  document
+    .querySelector("#newCard")
+    ?.addEventListener("click", () => openCardModal());
+  document.querySelectorAll("[data-edit-card]").forEach(
+    (button) =>
+      (button.onclick = () =>
+        openCardModal(cardById(button.dataset.editCard))),
+  );
+  document.querySelectorAll("[data-toggle-card]").forEach(
+    (button) =>
+      (button.onclick = async () => {
+        const card = cardById(button.dataset.toggleCard);
+        const activate = button.dataset.cardActive === "true";
+        if (!card) return;
+        if (
+          !activate &&
+          !confirm(
+            `Arquivar ${card.name}? As faturas antigas continuarão identificadas.`,
+          )
+        )
+          return;
+        busy(button, true);
+        try {
+          await FirebaseService.setCardActive(
+            state.selected.id,
+            card.id,
+            activate,
+            state.user.uid,
+          );
+          toast(activate ? "Cartão reativado." : "Cartão arquivado.");
+        } catch (error) {
+          firebaseError(error);
+          busy(button, false);
+        }
+      }),
+  );
   document.querySelector("#newRecord")?.addEventListener("click", () => {
     if (canEdit()) openRecordModal();
   });
@@ -720,8 +897,13 @@ function bindShell() {
     .querySelector("#expenseCategoryFilter")
     ?.addEventListener("change", (event) => {
       state.calendarFilters.expenseCategory = event.target.value;
+      if (event.target.value !== "Cartão") state.calendarFilters.cardId = "";
       renderApp();
     });
+  document.querySelector("#cardFilter")?.addEventListener("change", (event) => {
+    state.calendarFilters.cardId = event.target.value;
+    renderApp();
+  });
   document
     .querySelector("#transactionSort")
     ?.addEventListener("change", (event) => {
@@ -739,6 +921,7 @@ function bindShell() {
       state.calendarFilters = {
         query: "",
         expenseCategory: "",
+        cardId: "",
         sort: "date",
       };
       renderApp();
@@ -821,7 +1004,7 @@ function calendarStatus(item) {
 }
 function openRecordDetails(item) {
   showModal(
-    `<article class="modal"><button class="modal-close" type="button">×</button><span class="eyebrow">SOMENTE LEITURA</span><h2>${esc(item.description)}</h2><p>${esc(item.category)} · ${formatDate(item.dueDate)}</p><div class="summary">${categoryIconBadge(item, "summary-icon")}<div><small>Valor</small><b>${money.format(item.amount)}</b></div></div><p><strong>Data planejada:</strong> ${formatDate(item.plannedDate)}</p><p><strong>Data real:</strong> ${formatDate(item.paidDate)}</p>${item.notes ? `<p>${esc(item.notes)}</p>` : ""}${item.attachment?.url ? `<a class="btn btn-soft" href="${attr(item.attachment.url)}" target="_blank" rel="noopener">Abrir comprovante</a>` : ""}</article>`,
+    `<article class="modal"><button class="modal-close" type="button">×</button><span class="eyebrow">SOMENTE LEITURA</span><h2>${esc(item.description)}</h2><p>${esc(categoryMeta(item))} · ${formatDate(item.dueDate)}</p><div class="summary">${categoryIconBadge(item, "summary-icon")}<div><small>Valor</small><b>${money.format(item.amount)}</b></div></div>${item.category === "Cartão" ? `<p><strong>Cartão:</strong> ${esc(cardNameFor(item))}</p>` : ""}<p><strong>Data planejada:</strong> ${formatDate(item.plannedDate)}</p><p><strong>Data real:</strong> ${formatDate(item.paidDate)}</p>${item.notes ? `<p>${esc(item.notes)}</p>` : ""}${item.attachment?.url ? `<a class="btn btn-soft" href="${attr(item.attachment.url)}" target="_blank" rel="noopener">Abrir comprovante</a>` : ""}</article>`,
   );
 }
 function openSummaryModal(type) {
@@ -874,7 +1057,7 @@ function openSummaryModal(type) {
 }
 function summaryDetailRow(item) {
   const status = financialStatus(item);
-  return `<button class="summary-detail-row" type="button" data-summary-edit="${item.id}">${categoryIconBadge(item)}<span class="summary-detail-copy"><b>${esc(item.description)}</b><small>${esc(item.category)} · ${formatDate(item.dueDate)}</small></span><strong class="${item.type === "income" ? "positive" : ""}">${item.type === "income" ? "+ " : ""}${money.format(item.amount)}</strong><span class="pill ${status.className}">${status.label}</span></button>`;
+  return `<button class="summary-detail-row" type="button" data-summary-edit="${item.id}">${categoryIconBadge(item)}<span class="summary-detail-copy"><b>${esc(item.description)}</b><small>${esc(categoryMeta(item))} · ${formatDate(item.dueDate)}</small></span><strong class="${item.type === "income" ? "positive" : ""}">${item.type === "income" ? "+ " : ""}${money.format(item.amount)}</strong><span class="pill ${status.className}">${status.label}</span></button>`;
 }
 function openManagementModal(item = null) {
   const editing = Boolean(item?.id);
@@ -940,6 +1123,102 @@ function openUserModal() {
   };
 }
 
+function openCardModal(item = null, onSaved = null) {
+  if (!state.selected || !canEdit()) return;
+  const editing = Boolean(item?.id);
+  const layer = document.createElement("div");
+  layer.className = "modal-backdrop secondary-modal-backdrop";
+  layer.innerHTML = `<form class="modal modal-large card-editor-modal" id="cardForm" role="dialog" aria-modal="true" aria-labelledby="cardFormTitle"><button class="modal-close" type="button" aria-label="Fechar">×</button><span class="eyebrow">${editing ? "EDITAR" : "NOVO"} CARTÃO</span><h2 id="cardFormTitle">${editing ? "Personalizar cartão" : "Adicionar cartão"}</h2><p>Use apenas dados de identificação. Não informe número completo, validade ou código de segurança.</p><div class="card-editor-layout"><div class="card-editor-fields"><label>Nome do cartão<input name="name" value="${attr(item?.name || "")}" placeholder="Ex.: Nubank, Itaú Platinum" required maxlength="60" autocomplete="off"></label><label>Nome do titular<input name="holderName" value="${attr(item?.holderName || "")}" placeholder="Como aparece no cartão" required maxlength="80" autocomplete="off"></label><label class="full">URL da logo <small>Opcional · use um endereço HTTPS de imagem</small><input name="logoUrl" type="url" inputmode="url" value="${attr(item?.logoUrl || "")}" placeholder="https://exemplo.com/logo.png"></label><fieldset class="card-color-field"><legend>Cor do cartão</legend><div class="card-color-row"><input name="backgroundColor" type="color" value="${attr(validCardColor(item?.backgroundColor))}" aria-label="Escolher uma cor"><div class="card-color-presets" aria-label="Cores sugeridas">${["#3157d5", "#111827", "#6d28d9", "#be123c", "#0369a1", "#f59e0b"].map((color) => `<button type="button" data-card-color="${color}" style="--preset-color:${color}" aria-label="Usar cor ${color}"></button>`).join("")}</div></div></fieldset><div class="card-day-fields"><label>Dia de fechamento <small>Opcional</small><input name="closingDay" type="number" min="1" max="31" inputmode="numeric" value="${item?.closingDay || ""}" placeholder="Ex.: 5"></label><label>Dia de vencimento <small>Opcional</small><input name="dueDay" type="number" min="1" max="31" inputmode="numeric" value="${item?.dueDay || ""}" placeholder="Ex.: 12"></label></div></div><div class="card-editor-preview"><small>PRÉ-VISUALIZAÇÃO</small><div id="cardPreview"></div><p>A cor do texto é ajustada automaticamente para manter o contraste.</p></div></div><div class="modal-actions"><button class="btn btn-soft" type="button" data-card-cancel>Cancelar</button><button class="btn btn-primary" type="submit">${editing ? "Salvar alterações" : "Adicionar cartão"}</button></div></form>`;
+  document.body.append(layer);
+  const form = layer.querySelector("#cardForm");
+  const close = () => {
+    document.removeEventListener("keydown", onKeydown);
+    layer.remove();
+  };
+  const onKeydown = (event) => {
+    if (event.key === "Escape") close();
+  };
+  const refreshPreview = () => {
+    const previewCard = {
+      name: form.elements.name.value,
+      holderName: form.elements.holderName.value,
+      logoUrl: form.elements.logoUrl.value,
+      backgroundColor: form.elements.backgroundColor.value,
+      closingDay: form.elements.closingDay.value,
+      dueDay: form.elements.dueDay.value,
+    };
+    layer.querySelector("#cardPreview").innerHTML = renderCardVisual(
+      previewCard,
+      true,
+    );
+    layer.querySelectorAll("[data-card-logo]").forEach(
+      (image) =>
+        (image.onerror = () => {
+          image.hidden = true;
+        }),
+    );
+    layer.querySelectorAll("[data-card-color]").forEach((button) => {
+      button.classList.toggle(
+        "active",
+        button.dataset.cardColor.toLowerCase() ===
+          form.elements.backgroundColor.value.toLowerCase(),
+      );
+    });
+  };
+  layer.querySelector(".modal-close").onclick = close;
+  layer.querySelector("[data-card-cancel]").onclick = close;
+  layer.onclick = (event) => {
+    if (event.target === layer) close();
+  };
+  document.addEventListener("keydown", onKeydown);
+  form.querySelectorAll("input").forEach(
+    (input) => (input.oninput = refreshPreview),
+  );
+  layer.querySelectorAll("[data-card-color]").forEach(
+    (button) =>
+      (button.onclick = () => {
+        form.elements.backgroundColor.value = button.dataset.cardColor;
+        refreshPreview();
+      }),
+  );
+  refreshPreview();
+  form.onsubmit = async (event) => {
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    const data = Object.fromEntries(new FormData(form));
+    if (data.logoUrl.trim() && !safeLogoUrl(data.logoUrl)) {
+      toast("A logo precisa usar uma URL HTTPS válida.", "danger");
+      form.elements.logoUrl.focus();
+      return;
+    }
+    data.logoUrl = safeLogoUrl(data.logoUrl);
+    data.backgroundColor = validCardColor(data.backgroundColor);
+    data.active = item?.active !== false;
+    busy(button, true);
+    try {
+      const cardRef = await FirebaseService.saveCard(
+        state.selected.id,
+        data,
+        state.user.uid,
+        item?.id,
+      );
+      const savedCard = { ...item, ...data, id: item?.id || cardRef.id };
+      state.cards = [
+        ...state.cards.filter((card) => card.id !== savedCard.id),
+        savedCard,
+      ].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+      close();
+      if (onSaved) onSaved(savedCard);
+      else renderApp();
+      toast(editing ? "Cartão atualizado." : "Cartão adicionado.");
+    } catch (error) {
+      firebaseError(error);
+      busy(button, false);
+    }
+  };
+  form.elements.name.focus();
+}
+
 function recurrenceBaseDescription(item) {
   if (item.recurrenceBaseDescription) return item.recurrenceBaseDescription;
   if (item.recurrenceType !== "installment") return item.description || "";
@@ -953,6 +1232,38 @@ function recurrenceDescription(baseDescription, item) {
   return item.recurrenceType === "installment"
     ? `${baseDescription} (${item.recurrenceIndex}/${item.recurrenceTotal})`
     : baseDescription;
+}
+
+function refreshRecordCardField(form, preferredId) {
+  const field = form?.querySelector("#recordCardField");
+  const select = form?.querySelector("#recordCardSelect");
+  const preview = form?.querySelector("#recordCardPreview");
+  if (!field || !select || !preview) return;
+  const isCardInvoice =
+    form.elements.type.value === "expense" &&
+    form.elements.category.value === "Cartão";
+  field.hidden = !isCardInvoice;
+  select.required = isCardInvoice;
+  if (!isCardInvoice) return;
+  const selectedId =
+    preferredId === undefined ? select.value : String(preferredId || "");
+  const available = state.cards.filter(
+    (card) => card.active !== false || card.id === selectedId,
+  );
+  select.innerHTML = `<option value="">${available.length ? "Selecione o cartão" : "Cadastre seu primeiro cartão"}</option>${cardOptions(selectedId)}`;
+  select.value = available.some((card) => card.id === selectedId)
+    ? selectedId
+    : "";
+  const card = cardById(select.value);
+  preview.innerHTML = card
+    ? renderCardVisual(card, true)
+    : `<div class="record-card-empty">${icon("credit-card")}<span><b>Qual cartão gerou esta fatura?</b><small>Essa identificação aparecerá na agenda e nos relatórios.</small></span></div>`;
+  preview.querySelectorAll("[data-card-logo]").forEach(
+    (image) =>
+      (image.onerror = () => {
+        image.hidden = true;
+      }),
+  );
 }
 
 function openRecordModal(item = {}) {
@@ -992,7 +1303,7 @@ function openRecordModal(item = {}) {
       ? `<section class="recurrence-context full"><b>${item.recurrenceType === "installment" ? "Parcela" : "Despesa recorrente"} ${item.recurrenceIndex} de ${item.recurrenceTotal}</b><small>Valor, datas e descrição podem ser propagados. Pagamento e comprovante continuam individuais.</small><div class="recurrence-scope" role="radiogroup" aria-label="Alcance da alteração"><label><input type="radio" name="recurrenceScope" value="single" checked><span><b>Somente este</b><small>Os outros meses não mudam</small></span></label>${remainingOccurrences > 1 ? `<label><input type="radio" name="recurrenceScope" value="future"><span><b>Este e os próximos</b><small>${remainingOccurrences} lançamentos</small></span></label>` : ""}<label><input type="radio" name="recurrenceScope" value="all"><span><b>Toda a série</b><small>${seriesOccurrences} lançamentos</small></span></label></div></section>`
       : "";
   showModal(
-    `<form class="modal modal-large" id="recordForm"><button class="modal-close" type="button">×</button><span class="eyebrow">${item.id ? "EDITAR" : "NOVO"} LANÇAMENTO</span><h2>${item.id ? esc(item.description) : "Adicionar ao calendário"}</h2><div class="type-toggle"><label><input type="radio" name="type" value="expense" ${type === "expense" ? "checked" : ""}> Débito</label><label><input type="radio" name="type" value="income" ${type === "income" ? "checked" : ""}> Entrada</label></div><div class="form-grid"><label>Descrição<input name="description" value="${attr(baseDescription)}" required maxlength="120"></label><label>Valor<input name="amount" type="number" min="0.01" step="0.01" value="${item.amount || ""}" required></label><label>Categoria<select name="category" id="categorySelect"></select></label><label>Data de vencimento/recebimento<input name="dueDate" type="date" value="${item.dueDate || ""}" required></label><label>Data que deseja pagar/receber<input name="plannedDate" type="date" value="${item.plannedDate || item.dueDate || ""}"></label><label>Status<select name="status" id="status"><option value="pending" ${!paid ? "selected" : ""}>Pendente</option><option value="paid" ${paid ? "selected" : ""}>${type === "income" ? "Recebido" : "Pago"}</option></select></label><label id="paidDateLabel">Data real do pagamento/recebimento<input name="paidDate" type="date" value="${item.paidDate || ""}"></label>${recurrenceFields}<label class="full">Observações<textarea name="notes" maxlength="500">${esc(item.notes || "")}</textarea></label><label class="full file-label">Comprovante (imagem ou PDF, até 10 MB)<input name="attachment" type="file" accept="image/jpeg,image/png,image/webp,application/pdf">${item.attachment?.url ? `<a href="${attr(item.attachment.url)}" target="_blank" rel="noopener">Abrir comprovante atual: ${esc(item.attachment.name)}</a>` : ""}</label></div><div class="modal-actions">${item.id ? '<button class="btn btn-danger" type="button" id="deleteRecord">Excluir</button>' : ""}<button class="btn btn-primary" type="submit">Salvar lançamento</button></div></form>`,
+    `<form class="modal modal-large" id="recordForm"><button class="modal-close" type="button">×</button><span class="eyebrow">${item.id ? "EDITAR" : "NOVO"} LANÇAMENTO</span><h2>${item.id ? esc(item.description) : "Adicionar ao calendário"}</h2><div class="type-toggle"><label><input type="radio" name="type" value="expense" ${type === "expense" ? "checked" : ""}> Débito</label><label><input type="radio" name="type" value="income" ${type === "income" ? "checked" : ""}> Entrada</label></div><div class="form-grid"><label>Descrição<input name="description" value="${attr(baseDescription)}" required maxlength="120"></label><label>Valor<input name="amount" type="number" min="0.01" step="0.01" value="${item.amount || ""}" required></label><label>Categoria<select name="category" id="categorySelect" required></select></label><label>Data de vencimento/recebimento<input name="dueDate" type="date" value="${item.dueDate || ""}" required></label><section class="record-card-field full" id="recordCardField" hidden><div class="record-card-select-row"><label>Cartão da fatura<select name="cardId" id="recordCardSelect"></select></label><button class="btn btn-soft" id="quickAddCard" type="button">${icon("plus")} Cadastrar cartão</button></div><div id="recordCardPreview"></div></section><label>Data que deseja pagar/receber<input name="plannedDate" type="date" value="${item.plannedDate || item.dueDate || ""}"></label><label>Status<select name="status" id="status"><option value="pending" ${!paid ? "selected" : ""}>Pendente</option><option value="paid" ${paid ? "selected" : ""}>${type === "income" ? "Recebido" : "Pago"}</option></select></label><label id="paidDateLabel">Data real do pagamento/recebimento<input name="paidDate" type="date" value="${item.paidDate || ""}"></label>${recurrenceFields}<label class="full">Observações<textarea name="notes" maxlength="500">${esc(item.notes || "")}</textarea></label><label class="full file-label">Comprovante (imagem ou PDF, até 10 MB)<input name="attachment" type="file" accept="image/jpeg,image/png,image/webp,application/pdf">${item.attachment?.url ? `<a href="${attr(item.attachment.url)}" target="_blank" rel="noopener">Abrir comprovante atual: ${esc(item.attachment.name)}</a>` : ""}</label></div><div class="modal-actions">${item.id ? '<button class="btn btn-danger" type="button" id="deleteRecord">Excluir</button>' : ""}<button class="btn btn-primary" type="submit">Salvar lançamento</button></div></form>`,
   );
   const form = document.querySelector("#recordForm");
   const category = form.querySelector("#categorySelect");
@@ -1014,18 +1325,24 @@ function openRecordModal(item = {}) {
   };
   const fillCategories = () => {
     const current = category.value || item.category;
-    category.innerHTML = categories[form.type.value]
-      .map((c) => `<option ${c === current ? "selected" : ""}>${c}</option>`)
-      .join("");
+    category.innerHTML = `<option value="">Selecione uma categoria</option>${categories[form.type.value]
+      .map((c) => `<option value="${attr(c)}" ${c === current ? "selected" : ""}>${esc(c === "Cartão" ? "Fatura de cartão" : c)}</option>`)
+      .join("")}`;
     form.status.options[1].textContent =
       form.type.value === "income" ? "Recebido" : "Pago";
     updateRecurrence();
+    refreshRecordCardField(form, item.cardId);
   };
   form
     .querySelectorAll('[name="type"]')
     .forEach((i) => (i.onchange = fillCategories));
   if (recurrenceToggle) recurrenceToggle.onchange = updateRecurrence;
   fillCategories();
+  category.onchange = () => refreshRecordCardField(form);
+  form.querySelector("#recordCardSelect").onchange = () =>
+    refreshRecordCardField(form);
+  form.querySelector("#quickAddCard").onclick = () =>
+    openCardModal(null, (card) => refreshRecordCardField(form, card.id));
   form.status.onchange = () =>
     (form.paidDate.required = form.status.value === "paid");
   form.status.onchange();
@@ -1047,6 +1364,19 @@ function openRecordModal(item = {}) {
       delete data.recurrenceType;
       delete data.recurrenceScope;
       delete data.attachment;
+      if (data.type === "expense" && data.category === "Cartão") {
+        const selectedCard = cardById(data.cardId);
+        if (!selectedCard) {
+          toast("Selecione ou cadastre o cartão desta fatura.", "danger");
+          form.querySelector("#recordCardSelect").focus();
+          busy(button, false);
+          return;
+        }
+        data.cardSnapshot = cardSnapshot(selectedCard);
+      } else {
+        data.cardId = "";
+        data.cardSnapshot = null;
+      }
       if (form.attachment.files[0])
         data.attachment = await FirebaseService.uploadAttachment(
           state.selected.id,
