@@ -1745,39 +1745,6 @@ html:not([data-theme="dark"]) :is(
 }
 
 /* Assistente de comandos por voz */
-.voice-command-button {
-  display: inline-flex;
-  min-height: 42px;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 9px 13px;
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  background: var(--surface);
-  color: var(--ink);
-  font-size: 11px;
-  font-weight: 650;
-  white-space: nowrap;
-  transition:
-    border-color 0.18s ease,
-    background 0.18s ease,
-    color 0.18s ease,
-    transform 0.18s ease;
-}
-
-.voice-command-button:hover {
-  border-color: #b7c7ef;
-  background: #f2f5ff;
-  color: #294bbb;
-  transform: translateY(-1px);
-}
-
-.voice-command-button .ui-icon {
-  width: 18px;
-  height: 18px;
-}
-
 .voice-assistant-backdrop {
   position: fixed;
   z-index: 170;
@@ -1983,7 +1950,6 @@ html:not([data-theme="dark"]) :is(
   margin-top: 14px;
 }
 
-html[data-theme="dark"] .voice-command-button:hover,
 html[data-theme="dark"] .voice-examples button:hover {
   border-color: #455a91;
   background: #1b315f;
@@ -1995,38 +1961,7 @@ html[data-theme="dark"] .voice-orb {
   color: #a9c2ff;
 }
 
-@media (max-width: 1050px) {
-  .voice-command-button span {
-    display: none;
-  }
-
-  .voice-command-button {
-    width: 42px;
-    padding-inline: 0;
-  }
-}
-
 @media (max-width: 760px) {
-  .voice-command-button {
-    position: fixed;
-    right: 15px;
-    bottom: calc(91px + env(safe-area-inset-bottom));
-    z-index: 30;
-    width: 48px;
-    height: 48px;
-    min-height: 48px;
-    border: 1px solid rgba(255, 255, 255, 0.34);
-    border-radius: 50%;
-    background: linear-gradient(145deg, #4a76ea, #294bbb);
-    color: #fff;
-    box-shadow: 0 12px 28px rgba(28, 55, 139, 0.32);
-  }
-
-  .voice-command-button:hover {
-    background: linear-gradient(145deg, #5b84ee, #294bbb);
-    color: #fff;
-  }
-
   .voice-assistant-backdrop {
     align-items: end;
     padding: 0;
@@ -2083,6 +2018,104 @@ html[data-theme="dark"] .voice-orb {
   .voice-orb::before,
   .voice-orb::after {
     animation: none !important;
+  }
+}
+
+/* Voz na navegação e encerramento de sessão nas configurações */
+.voice-sidebar-command:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.mobile-nav-voice .ui-icon,
+.voice-sidebar-command .ui-icon,
+.settings-logout-button .ui-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.settings-session-card {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0 20px;
+}
+
+.settings-session-card .settings-card-head {
+  grid-column: 1 / -1;
+}
+
+.settings-session-profile {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 11px;
+}
+
+.settings-session-profile > span {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-radius: 13px;
+  place-items: center;
+  background: #e8efff;
+  color: #3157d5;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.settings-session-profile > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.settings-session-profile b,
+.settings-session-profile small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-session-profile b {
+  font-size: 12px;
+}
+
+.settings-session-profile small {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.settings-logout-button {
+  display: inline-flex;
+  min-width: 150px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+html[data-theme="dark"] .settings-session-profile > span {
+  background: #1b315f;
+  color: #aec4fb;
+}
+
+@media (max-width: 760px) {
+  .settings-session-card {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .settings-session-card .settings-card-head {
+    grid-column: 1;
+    margin-bottom: 4px;
+  }
+
+  .settings-logout-button {
+    width: 100%;
+    min-height: 44px;
   }
 }
 
