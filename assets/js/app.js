@@ -68,6 +68,298 @@ const categories = {
   ],
 };
 
+const voiceLexicon = {
+  create: [
+    "adicionar",
+    "adicione",
+    "adiciona",
+    "anotar",
+    "anote",
+    "anota",
+    "botar",
+    "bote",
+    "bota",
+    "cadastrar",
+    "cadastre",
+    "cadastra",
+    "colocar",
+    "coloque",
+    "coloca",
+    "criar",
+    "crie",
+    "cria",
+    "incluir",
+    "inclua",
+    "inclui",
+    "lançar",
+    "lance",
+    "lança",
+    "registrar",
+    "registre",
+    "registra",
+    "põe",
+    "poe",
+  ],
+  expense: [
+    "despesa",
+    "conta",
+    "gasto",
+    "débito",
+    "boleto",
+    "pagamento",
+    "saída",
+    "valor para pagar",
+  ],
+  income: [
+    "receita",
+    "entrada",
+    "ganho",
+    "recebimento",
+    "dinheiro que entrou",
+    "valor recebido",
+  ],
+  save: [
+    "salvar",
+    "salve",
+    "salva",
+    "gravar",
+    "grave",
+    "grava",
+    "confirmar",
+    "confirme",
+    "confirma",
+    "finalizar",
+    "finalize",
+    "finaliza",
+  ],
+  paid: [
+    "paguei",
+    "quitei",
+    "quitado",
+    "quitada",
+    "pago",
+    "paga",
+    "já foi pago",
+    "já foi paga",
+    "dei baixa",
+    "dar baixa",
+    "dá baixa",
+    "baixar pagamento",
+  ],
+  received: [
+    "recebi",
+    "recebido",
+    "recebida",
+    "já caiu",
+    "caiu na conta",
+    "dinheiro caiu",
+    "entrou na conta",
+  ],
+  filter: [
+    "filtrar",
+    "filtre",
+    "filtra",
+    "mostrar só",
+    "mostre só",
+    "mostra só",
+    "quero só",
+    "somente",
+  ],
+  search: [
+    "buscar",
+    "busque",
+    "busca",
+    "pesquisar",
+    "pesquise",
+    "pesquisa",
+    "procurar",
+    "procure",
+    "procura",
+    "achar",
+    "ache",
+    "acha",
+    "encontrar",
+    "encontre",
+    "encontra",
+  ],
+  open: [
+    "abrir",
+    "abra",
+    "mostrar",
+    "mostre",
+    "ver",
+    "ir para",
+    "vá para",
+    "vai para",
+    "vai pra",
+    "me leva para",
+    "voltar para",
+  ],
+  filler: [
+    "por favor",
+    "por gentileza",
+    "pra mim",
+    "para mim",
+    "aí pra mim",
+    "aí",
+    "tipo assim",
+    "eu quero que",
+    "quero que você",
+    "gostaria que você",
+    "preciso que você",
+    "você pode",
+    "pode",
+  ],
+};
+
+const voiceCategoryAliases = {
+  expense: [
+    [
+      ["fatura", "cartão de crédito", "cartão", "crédito"],
+      "Cartão",
+    ],
+    [
+      ["água", "conta de água", "saneamento", "sabesp", "copasa"],
+      "Água",
+    ],
+    [
+      ["luz", "conta de luz", "energia", "eletricidade", "enel", "cemig"],
+      "Energia",
+    ],
+    [
+      ["celular", "telefone", "telefonia", "recarga", "plano móvel"],
+      "Celular",
+    ],
+    [
+      [
+        "internet",
+        "wi-fi",
+        "wifi",
+        "banda larga",
+        "fibra",
+        "provedor",
+        "net",
+      ],
+      "Internet",
+    ],
+    [
+      [
+        "alimentação",
+        "comida",
+        "mercado",
+        "supermercado",
+        "feira",
+        "padaria",
+        "restaurante",
+        "lanche",
+        "ifood",
+      ],
+      "Alimentação",
+    ],
+    [
+      ["moradia", "aluguel", "condomínio", "casa", "prestação da casa"],
+      "Moradia",
+    ],
+    [
+      ["imposto", "impostos", "iptu", "ipva", "tributo", "taxa pública"],
+      "Impostos",
+    ],
+    [
+      [
+        "transporte",
+        "carro",
+        "combustível",
+        "gasolina",
+        "etanol",
+        "uber",
+        "ônibus",
+        "passagem",
+        "estacionamento",
+        "pedágio",
+      ],
+      "Transporte",
+    ],
+    [
+      [
+        "saúde",
+        "médico",
+        "remédio",
+        "farmácia",
+        "consulta",
+        "dentista",
+        "plano de saúde",
+      ],
+      "Saúde",
+    ],
+    [
+      [
+        "educação",
+        "escola",
+        "faculdade",
+        "curso",
+        "material escolar",
+        "mensalidade escolar",
+      ],
+      "Educação",
+    ],
+    [
+      [
+        "lazer",
+        "passeio",
+        "cinema",
+        "viagem",
+        "diversão",
+        "streaming",
+        "netflix",
+      ],
+      "Lazer",
+    ],
+    [
+      [
+        "acordo",
+        "renegociação",
+        "dívida",
+        "dívidas",
+        "parcela do acordo",
+        "serasa",
+      ],
+      "Acordos e dívidas",
+    ],
+    [["outro", "outros", "diversos"], "Outros"],
+  ],
+  income: [
+    [
+      ["salário", "salario", "pagamento do trabalho", "ordenado"],
+      "Salário",
+    ],
+    [
+      ["aluguel recebido", "aluguel", "locação", "inquilino"],
+      "Aluguel",
+    ],
+    [
+      ["freelance", "freela", "bico", "trabalho extra", "serviço por fora"],
+      "Freelance",
+    ],
+    [
+      [
+        "benefício",
+        "pensão",
+        "aposentadoria",
+        "auxílio",
+        "inss",
+      ],
+      "Benefício",
+    ],
+    [
+      ["rendimento", "juros", "investimento", "dividendo"],
+      "Rendimento",
+    ],
+    [["reembolso", "estorno", "devolução"], "Reembolso"],
+    [["venda", "vendi"], "Venda"],
+    [["outro", "outros", "diversos"], "Outros"],
+  ],
+};
+
 const categoryIcons = {
   expense: {
     "Cartão": "credit-card",
@@ -1016,10 +1308,10 @@ function openVoiceAssistant() {
   layer.className = "voice-assistant-backdrop";
   layer.id = "voiceAssistant";
   layer.innerHTML = `<section class="voice-assistant" role="dialog" aria-modal="true" aria-labelledby="voiceAssistantTitle"><button class="voice-assistant-close" type="button" aria-label="Fechar">×</button><span class="eyebrow">ASSISTENTE DE VOZ</span><div class="voice-assistant-heading"><span class="voice-orb" aria-hidden="true">${icon("mic")}</span><div><h2 id="voiceAssistantTitle">O que deseja fazer?</h2><p id="voiceStatus" aria-live="polite">Preparando o microfone...</p></div></div><blockquote id="voiceTranscript" aria-live="polite">Fale um comando em português.</blockquote><div class="voice-examples"><small>EXPERIMENTE DIZER</small>${[
-    "Nova despesa de 120 reais de internet dia 10 e salvar",
-    "Marcar internet como pago e salvar",
-    "Abrir agenda",
-    "Próximo mês",
+    "Coloca a conta de luz de 150 pro dia 10 e grava",
+    "Paguei a internet hoje, pode salvar",
+    "Quanto ainda falta pagar?",
+    "Vai pra agenda",
   ]
     .map(
       (command) =>
@@ -1296,55 +1588,62 @@ function normalizeVoiceText(value = "") {
     .trim();
 }
 
+function voiceHasAny(command, terms = []) {
+  const searchable = ` ${normalizeVoiceText(command).replace(/[,.]/g, " ")} `
+    .replace(/\s+/g, " ");
+  return terms.some((term) => {
+    const normalizedTerm = normalizeVoiceText(term)
+      .replace(/[,.]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return normalizedTerm && searchable.includes(` ${normalizedTerm} `);
+  });
+}
+
+function voiceRemoveTerms(command, terms = []) {
+  let result = ` ${normalizeVoiceText(command).replace(/[,.]/g, " ")} `
+    .replace(/\s+/g, " ");
+  terms
+    .map((term) => normalizeVoiceText(term).replace(/[,.]/g, " ").trim())
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length)
+    .forEach((term) => {
+      result = result.replaceAll(` ${term} `, " ");
+    });
+  return result.replace(/\s+/g, " ").trim();
+}
+
 function voiceCategory(command, type) {
   const normalized = normalizeVoiceText(command);
   const categoryList = categories[type];
   const direct = categoryList
     .slice()
     .sort((a, b) => b.length - a.length)
-    .find((category) =>
-      normalized.includes(normalizeVoiceText(category)),
-    );
+    .find((category) => voiceHasAny(normalized, [category]));
   if (direct) return direct;
-  const aliases =
-    type === "income"
-      ? [
-          [["aluguel", "locacao", "inquilino"], "Aluguel"],
-          [["salario", "pagamento do trabalho"], "Salário"],
-          [["freela", "servico freelance"], "Freelance"],
-          [["reembolso"], "Reembolso"],
-          [["venda"], "Venda"],
-        ]
-      : [
-          [["fatura", "cartao"], "Cartão"],
-          [["luz"], "Energia"],
-          [["telefone", "telefonia"], "Celular"],
-          [["comida", "mercado", "supermercado"], "Alimentação"],
-          [["aluguel", "casa", "condominio"], "Moradia"],
-          [["carro", "combustivel", "uber", "onibus"], "Transporte"],
-          [["medico", "remedio", "farmacia"], "Saúde"],
-          [["escola", "faculdade", "curso"], "Educação"],
-          [
-            ["acordo", "renegociacao", "divida", "dividas"],
-            "Acordos e dívidas",
-          ],
-        ];
-  return (
-    aliases.find(([terms]) =>
-      terms.some((term) => normalized.includes(term)),
-    )?.[1] || ""
-  );
+  const alias = voiceCategoryAliases[type].find(([terms]) =>
+    voiceHasAny(normalized, terms),
+  )?.[1];
+  if (alias) return alias;
+  if (type === "expense" && voiceCard(normalized)) return "Cartão";
+  return "";
 }
 
 function voiceCard(command) {
   const normalized = normalizeVoiceText(command);
-  return (
-    state.cards
-      .filter((card) => card.active !== false)
-      .sort((a, b) => b.name.length - a.name.length)
-      .find((card) => normalized.includes(normalizeVoiceText(card.name))) ||
-    null
+  const activeCards = state.cards.filter((card) => card.active !== false);
+  const exact = activeCards
+    .slice()
+    .sort((a, b) => b.name.length - a.name.length)
+    .find((card) => voiceHasAny(normalized, [card.name]));
+  if (exact) return exact;
+  const partialMatches = activeCards.filter((card) =>
+    normalizeVoiceText(card.name)
+      .split(" ")
+      .filter((word) => word.length > 2)
+      .some((word) => voiceHasAny(normalized, [word])),
   );
+  return partialMatches.length === 1 ? partialMatches[0] : null;
 }
 
 function portugueseNumber(value) {
@@ -1361,6 +1660,7 @@ function portugueseNumber(value) {
     sete: 7,
     oito: 8,
     nove: 9,
+    primeiro: 1,
     dez: 10,
     onze: 11,
     doze: 12,
@@ -1413,34 +1713,112 @@ function portugueseNumber(value) {
   return found ? total + current : 0;
 }
 
+function voiceNumericValue(raw = "") {
+  const value = String(raw).trim();
+  const normalized = value.includes(",")
+    ? value.replaceAll(".", "").replace(",", ".")
+    : /^\d{1,3}(?:\.\d{3})+$/.test(value)
+      ? value.replaceAll(".", "")
+      : value;
+  const number = Number(normalized);
+  return Number.isFinite(number) && number > 0 ? number : 0;
+}
+
 function voiceAmount(command) {
   const digitMatch =
     command.match(
-      /(?:r\$\s*|(?:no\s+)?valor\s+de\s+|de\s+)(\d[\d.]*?(?:,\d{1,2})?)(?:\s*reais?)?(?:\s|$)/,
-    ) || command.match(/(\d[\d.]*?(?:,\d{1,2})?)\s*reais?/);
+      /(?:r\$\s*|(?:no\s+)?valor\s+(?:de\s+)?|cust(?:a|ou)\s+|saiu\s+(?:por\s+)?|total\s+(?:de\s+)?|de\s+)(\d[\d.]*?(?:,\d{1,2})?)(?:\s*(?:reais?|contos?))?(?:\s|$)/,
+    ) ||
+    command.match(/(\d[\d.]*?(?:,\d{1,2})?)\s*(?:reais?|contos?)/);
   if (digitMatch) {
-    const raw = digitMatch[1];
-    const normalized = raw.includes(",")
-      ? raw.replaceAll(".", "").replace(",", ".")
-      : /^\d{1,3}(?:\.\d{3})+$/.test(raw)
-        ? raw.replaceAll(".", "")
-        : raw;
-    const amount = Number(normalized);
+    const amount = voiceNumericValue(digitMatch[1]);
     if (amount > 0) return amount;
   }
   const words = command.match(
-    /(?:valor\s+de\s+|de\s+)([\p{L}\s-]+?)\s+reais?/u,
+    /(?:valor\s+(?:de\s+)?|cust(?:a|ou)\s+|saiu\s+(?:por\s+)?|de\s+)([\p{L}\s-]+?)(?=\s+(?:reais?|contos?|pro\s+dia|para\s+o\s+dia|dia|e\s+(?:salvar|salva|gravar|grava|confirmar|confirma))\b|$)/u,
   );
-  return words ? portugueseNumber(words[1]) : 0;
+  const amountInWords = words ? portugueseNumber(words[1]) : 0;
+  if (amountInWords) return amountInWords;
+  const spokenCurrency = command.match(
+    /\b((?:(?:zero|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|quatorze|catorze|quinze|dezesseis|dezessete|dezoito|dezenove|vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|noventa|cem|cento|duzentos|trezentos|quatrocentos|quinhentos|seiscentos|setecentos|oitocentos|novecentos|mil|e)(?:\s+|$))+)(?:reais?|contos?)\b/,
+  );
+  const spokenAmount = spokenCurrency
+    ? portugueseNumber(spokenCurrency[1])
+    : 0;
+  if (spokenAmount) return spokenAmount;
+
+  const genericNumbers = [...command.matchAll(/\b\d[\d.]*?(?:,\d{1,2})?\b/g)];
+  const genericAmount = genericNumbers.find((match) => {
+    const before = command.slice(Math.max(0, match.index - 16), match.index);
+    const after = command.slice(
+      match.index + match[0].length,
+      match.index + match[0].length + 8,
+    );
+    return (
+      !/\b(?:dia|vence|vencimento|em)\s*$/.test(before) &&
+      !/^\s*[/.:-]\s*\d/.test(after) &&
+      !/^20\d{2}$/.test(match[0])
+    );
+  });
+  return genericAmount ? voiceNumericValue(genericAmount[0]) : 0;
 }
 
 function voiceDueDate(command) {
-  const dayMatch = command.match(/\bdia\s+(\d{1,2})\b/);
-  if (!dayMatch) return "";
-  const [year, month] = state.month.split("-").map(Number);
+  if (voiceHasAny(command, ["hoje"])) return todayKey();
+  if (voiceHasAny(command, ["amanhã", "dia seguinte"])) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
+  }
+
+  const numericDate = command.match(
+    /\b(\d{1,2})[/.](\d{1,2})(?:[/.](\d{2,4}))?\b/,
+  );
+  if (numericDate) {
+    const day = Number(numericDate[1]);
+    const month = Number(numericDate[2]);
+    let year = Number(numericDate[3] || state.month.slice(0, 4));
+    if (year < 100) year += 2000;
+    const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    if (month >= 1 && month <= 12 && day >= 1 && day <= lastDay)
+      return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  }
+
+  const digitDay =
+    command.match(/\bdia\s+(\d{1,2})\b/) ||
+    command.match(/\b(?:vence|vencimento|receber|recebo)\s+(?:no\s+)?(\d{1,2})\b/);
+  const wordDay = command.match(
+    /\bdia\s+([\p{L}]+(?:\s+e\s+[\p{L}]+)?)/u,
+  );
+  const day = digitDay
+    ? Number(digitDay[1])
+    : wordDay
+      ? portugueseNumber(wordDay[1])
+      : 0;
+  if (!day) return "";
+
+  let targetMonth = voiceMonthFromName(command) || state.month;
+  if (
+    !voiceMonthFromName(command) &&
+    voiceHasAny(command, ["mês que vem", "próximo mês", "mês seguinte"])
+  ) {
+    const [year, month] = state.month.split("-").map(Number);
+    targetMonth = new Date(Date.UTC(year, month, 1))
+      .toISOString()
+      .slice(0, 7);
+  } else if (
+    !voiceMonthFromName(command) &&
+    voiceHasAny(command, ["mês passado", "mês anterior"])
+  ) {
+    const [year, month] = state.month.split("-").map(Number);
+    targetMonth = new Date(Date.UTC(year, month - 2, 1))
+      .toISOString()
+      .slice(0, 7);
+  }
+  const [year, month] = targetMonth.split("-").map(Number);
   const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const day = Math.min(Math.max(Number(dayMatch[1]), 1), lastDay);
-  return `${state.month}-${String(day).padStart(2, "0")}`;
+  const safeDay = Math.min(Math.max(day, 1), lastDay);
+  return `${targetMonth}-${String(safeDay).padStart(2, "0")}`;
 }
 
 function shiftVoiceMonth(offset) {
@@ -1486,7 +1864,7 @@ function voiceCommandNotUnderstood(message = "") {
 }
 
 function voiceWantsImmediateSave(command) {
-  return /\b(salvar|salve|salva)\b/.test(command);
+  return voiceHasAny(command, voiceLexicon.save);
 }
 
 function voiceTransactionPayload(item, changes = {}) {
@@ -1507,7 +1885,11 @@ function voiceTransactionPayload(item, changes = {}) {
   };
 }
 
-async function saveVoiceTransaction(data, id = "", successMessage = "Lançamento salvo.") {
+async function saveVoiceTransaction(
+  data,
+  id = "",
+  successMessage = "Lançamento salvo.",
+) {
   updateVoiceAssistant("Salvando o lançamento no Firebase...", data.description);
   try {
     await FirebaseService.saveTransaction(
@@ -1517,6 +1899,7 @@ async function saveVoiceTransaction(data, id = "", successMessage = "Lançamento
       id || undefined,
     );
     closeVoiceAssistant();
+    if (!id && data.dueDate) state.month = data.dueDate.slice(0, 7);
     state.view = "dashboard";
     renderApp();
     toast(successMessage);
@@ -1573,17 +1956,158 @@ function openVoiceRecordChoice(
   );
 }
 
-function voiceMarkAsCompleted(command) {
-  const received = /\b(recebido|recebida|recebi)\b/.test(command);
-  const saveImmediately = voiceWantsImmediateSave(command);
-  const explicit = command.match(
-    /(?:marcar|marque|definir)\s+(?:o\s+|a\s+)?(.+?)\s+como\s+(?:pago|paga|recebido|recebida)\b/,
+function voiceLooksLikeNewRecord(command) {
+  if (!voiceHasAny(command, voiceLexicon.create)) return false;
+  if (
+    voiceHasAny(command, [
+      ...voiceLexicon.paid,
+      ...voiceLexicon.received,
+      "como pago",
+      "como paga",
+      "como recebido",
+      "como recebida",
+    ])
+  )
+    return false;
+  return Boolean(
+    voiceHasAny(command, [...voiceLexicon.expense, ...voiceLexicon.income]) ||
+      voiceCategory(command, "expense") ||
+      voiceCategory(command, "income") ||
+      voiceAmount(command),
   );
-  const natural = command.match(/\b(?:paguei|recebi)\s+(?:o\s+|a\s+)?(.+)/);
-  const query = (explicit?.[1] || natural?.[1] || "")
-    .replace(/\b(?:hoje|agora)\b/g, "")
-    .replace(/\b(?:e\s+)?(?:salvar|salve|salva)\b/g, "")
+}
+
+function voiceTransactionType(command) {
+  if (
+    voiceHasAny(command, [
+      ...voiceLexicon.income,
+      "receita nova",
+      "entrada nova",
+    ])
+  )
+    return "income";
+  const incomeCategory = voiceCategory(command, "income");
+  const expenseCategory = voiceCategory(command, "expense");
+  return incomeCategory && !expenseCategory
+    ? "income"
+    : "expense";
+}
+
+function handleVoiceNewRecord(command) {
+  if (!voiceLooksLikeNewRecord(command)) return false;
+  if (!state.selected) {
+    voiceCommandNotUnderstood(
+      "Selecione ou crie um gerenciamento antes de adicionar lançamentos.",
+    );
+    return true;
+  }
+  if (!canEdit()) {
+    voiceCommandNotUnderstood(
+      "Seu acesso permite apenas visualizar lançamentos.",
+    );
+    return true;
+  }
+
+  const type = voiceTransactionType(command);
+  const category = voiceCategory(command, type);
+  const selectedCard =
+    type === "expense" && category === "Cartão" ? voiceCard(command) : null;
+  const amount = voiceAmount(command);
+  const dueDate = voiceDueDate(command);
+  const saveImmediately = voiceWantsImmediateSave(command);
+  const draft = {
+    type,
+    description:
+      category || (type === "income" ? "Nova entrada" : "Nova despesa"),
+    category,
+    cardId: selectedCard?.id || "",
+    amount: amount || "",
+    dueDate,
+    plannedDate: dueDate,
+    status: "pending",
+  };
+
+  if (saveImmediately) {
+    const missing = [];
+    if (!amount) missing.push("valor");
+    if (!category) missing.push("categoria");
+    if (!dueDate) missing.push("data");
+    if (category === "Cartão" && !selectedCard) missing.push("cartão");
+    if (!missing.length) {
+      void saveVoiceTransaction(
+        voiceTransactionPayload({
+          ...draft,
+          cardSnapshot: cardSnapshot(selectedCard),
+        }),
+        "",
+        `${type === "income" ? "Entrada" : "Despesa"} adicionada e salva.`,
+      );
+      return true;
+    }
+    closeVoiceAssistant();
+    openRecordModal(draft);
+    toast(
+      `Não salvei ainda: informe ${missing.join(", ")} e confirme o lançamento.`,
+      "danger",
+    );
+    return true;
+  }
+
+  completeVoiceAction(
+    "Formulário preparado. Revise os dados antes de salvar.",
+    () => openRecordModal(draft),
+  );
+  return true;
+}
+
+function voicePaymentQuery(command) {
+  const noise = [
+    ...voiceLexicon.paid,
+    ...voiceLexicon.received,
+    ...voiceLexicon.save,
+    ...voiceLexicon.filler,
+    "marcar",
+    "marque",
+    "marca",
+    "colocar",
+    "coloque",
+    "coloca",
+    "botar",
+    "bote",
+    "bota",
+    "põe",
+    "poe",
+    "baixar",
+    "baixe",
+    "baixa",
+    "como",
+    "já",
+    "foi",
+    "está",
+    "tá",
+    "agora",
+    "hoje",
+    "a conta",
+    "o boleto",
+    "a despesa",
+    "a entrada",
+    "o pagamento",
+    "e",
+    "que",
+  ];
+  return voiceRemoveTerms(command, noise)
+    .replace(/^(?:a|o|as|os|na|no|da|do|de|que)\s+/, "")
+    .replace(/\b(?:por favor|pra mim|para mim)\b/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
+}
+
+function voiceMarkAsCompleted(command) {
+  const received = voiceHasAny(command, voiceLexicon.received);
+  const paid = voiceHasAny(command, voiceLexicon.paid);
+  if (!received && !paid) return false;
+  const saveImmediately = voiceWantsImmediateSave(command);
+  const query = voicePaymentQuery(command);
   if (!query) return false;
   if (!canEdit()) {
     voiceCommandNotUnderstood(
@@ -1603,8 +2127,15 @@ function voiceMarkAsCompleted(command) {
           "receita",
           "pagamento",
           "para",
+          "com",
+          "uma",
         ].includes(word),
     );
+  const inferredCategory = voiceCategory(
+    query,
+    received ? "income" : "expense",
+  );
+  const inferredCard = received ? null : voiceCard(query);
   const candidates = monthTransactions().filter(
     (item) => {
       const haystack = normalizeVoiceText(
@@ -1614,6 +2145,10 @@ function voiceMarkAsCompleted(command) {
         item.type === (received ? "income" : "expense") &&
         item.status !== "paid" &&
         (haystack.includes(query) ||
+          (inferredCard && item.cardId === inferredCard.id) ||
+          (!inferredCard &&
+            inferredCategory &&
+            item.category === inferredCategory) ||
           (queryWords.length &&
             queryWords.every((word) => haystack.includes(word))))
       );
@@ -1662,17 +2197,38 @@ function executeVoiceCommand(transcript) {
   const command = normalizeVoiceText(transcript);
   if (!command) return voiceCommandNotUnderstood();
 
-  if (/\b(ajuda|comandos|o que posso dizer)\b/.test(command)) {
+  if (
+    voiceHasAny(command, [
+      "ajuda",
+      "me ajuda",
+      "comandos",
+      "o que posso dizer",
+      "como funciona a voz",
+    ])
+  ) {
     updateVoiceAssistant(
-      "Você pode navegar, mudar o mês, buscar, filtrar, iniciar lançamentos e preparar um registro para pagamento.",
+      "Fale naturalmente: você pode adicionar contas e entradas, dar baixa, consultar pendências, navegar, buscar e filtrar.",
       transcript,
     );
     return;
   }
 
+  if (handleVoiceNewRecord(command)) return;
+
   if (voiceMarkAsCompleted(command)) return;
 
-  if (/\b(limpar|remover)\s+(os\s+)?filtros\b/.test(command)) {
+  if (
+    voiceHasAny(command, [
+      "limpar filtros",
+      "limpa os filtros",
+      "remover filtros",
+      "remove os filtros",
+      "tirar os filtros",
+      "tira os filtros",
+      "mostrar tudo",
+      "mostra tudo",
+    ])
+  ) {
     completeVoiceAction("Filtros removidos.", () => {
       state.calendarFilters = {
         query: "",
@@ -1687,12 +2243,14 @@ function executeVoiceCommand(transcript) {
   }
 
   const searchMatch = command.match(
-    /\b(?:buscar|busque|pesquisar|pesquise|procurar|procure)\s+(.+)/,
+    /\b(?:buscar|busque|busca|pesquisar|pesquise|pesquisa|procurar|procure|procura|achar|ache|acha|encontrar|encontre|encontra)(?:\s+por)?\s+(.+)/,
   );
   if (searchMatch) {
-    completeVoiceAction(`Buscando por “${searchMatch[1]}”.`, () => {
+    const searchQuery =
+      voiceRemoveTerms(searchMatch[1], voiceLexicon.filler) || searchMatch[1];
+    completeVoiceAction(`Buscando por “${searchQuery}”.`, () => {
       state.calendarFilters = {
-        query: searchMatch[1],
+        query: searchQuery,
         expenseCategory: "",
         cardId: "",
         sort: "date",
@@ -1705,7 +2263,7 @@ function executeVoiceCommand(transcript) {
     return;
   }
 
-  if (/\b(filtrar|filtre)\b/.test(command)) {
+  if (voiceHasAny(command, voiceLexicon.filter)) {
     const category = voiceCategory(command, "expense");
     if (!category) {
       voiceCommandNotUnderstood(
@@ -1735,7 +2293,9 @@ function executeVoiceCommand(transcript) {
   }
 
   if (
-    /\b(menor\s+(?:para|pro)\s+(?:o\s+)?maior|crescente)\b/.test(command)
+    /\b(menor\s+(?:para|pro)\s+(?:o\s+)?maior|crescente|mais barato primeiro|menores primeiro)\b/.test(
+      command,
+    )
   ) {
     completeVoiceAction("Lançamentos ordenados do menor valor para o maior.", () => {
       state.calendarFilters.sort = "amount-asc";
@@ -1746,7 +2306,9 @@ function executeVoiceCommand(transcript) {
     return;
   }
   if (
-    /\b(maior\s+(?:para|pro)\s+(?:o\s+)?menor|decrescente)\b/.test(command)
+    /\b(maior\s+(?:para|pro)\s+(?:o\s+)?menor|decrescente|mais caro primeiro|maiores primeiro)\b/.test(
+      command,
+    )
   ) {
     completeVoiceAction("Lançamentos ordenados do maior valor para o menor.", () => {
       state.calendarFilters.sort = "amount-desc";
@@ -1757,21 +2319,44 @@ function executeVoiceCommand(transcript) {
     return;
   }
 
-  if (/\b(proximo mes|mes seguinte|mes que vem)\b/.test(command)) {
+  if (
+    voiceHasAny(command, [
+      "próximo mês",
+      "mês seguinte",
+      "mês que vem",
+      "avança um mês",
+      "avançar um mês",
+    ])
+  ) {
     completeVoiceAction("Avançando para o próximo mês.", () => {
       shiftVoiceMonth(1);
       renderApp();
     });
     return;
   }
-  if (/\b(mes anterior|mes passado)\b/.test(command)) {
+  if (
+    voiceHasAny(command, [
+      "mês anterior",
+      "mês passado",
+      "volta um mês",
+      "voltar um mês",
+    ])
+  ) {
     completeVoiceAction("Voltando para o mês anterior.", () => {
       shiftVoiceMonth(-1);
       renderApp();
     });
     return;
   }
-  if (/\b(mes atual|voltar para hoje|ir para hoje)\b/.test(command)) {
+  if (
+    voiceHasAny(command, [
+      "mês atual",
+      "voltar para hoje",
+      "ir para hoje",
+      "volta pra hoje",
+      "vai pra hoje",
+    ])
+  ) {
     completeVoiceAction("Mostrando o mês atual.", () => {
       state.month = new Date().toISOString().slice(0, 7);
       renderApp();
@@ -1781,7 +2366,8 @@ function executeVoiceCommand(transcript) {
   const namedMonth = voiceMonthFromName(command);
   if (
     namedMonth &&
-    /\b(ir|abrir|abra|mostrar|mostre|mudar|va)\b/.test(command)
+    (voiceHasAny(command, voiceLexicon.open) ||
+      voiceHasAny(command, ["mudar", "mude", "trocar", "troque"]))
   ) {
     completeVoiceAction("Período atualizado.", () => {
       state.month = namedMonth;
@@ -1790,23 +2376,44 @@ function executeVoiceCommand(transcript) {
     return;
   }
 
-  if (/\b(modo|tema)\s+escuro\b/.test(command)) {
+  if (
+    voiceHasAny(command, [
+      "modo escuro",
+      "tema escuro",
+      "modo noturno",
+      "deixa escuro",
+      "deixe escuro",
+    ])
+  ) {
     completeVoiceAction("Modo escuro ativado.", () =>
       setThemePreference("dark"),
     );
     return;
   }
-  if (/\b(modo|tema)\s+claro\b/.test(command)) {
+  if (
+    voiceHasAny(command, [
+      "modo claro",
+      "tema claro",
+      "deixa claro",
+      "deixe claro",
+    ])
+  ) {
     completeVoiceAction("Modo claro ativado.", () =>
       setThemePreference("light"),
     );
     return;
   }
 
+  const wantsToOpen = voiceHasAny(command, voiceLexicon.open);
   if (
-    /\b(abrir|abra|mostrar|mostre|ver|ir para|va para|voltar para)\b.*\b(visao geral|inicio|dashboard)\b/.test(
-      command,
-    )
+    wantsToOpen &&
+    voiceHasAny(command, [
+      "visão geral",
+      "início",
+      "dashboard",
+      "painel",
+      "resumo",
+    ])
   ) {
     completeVoiceAction("Abrindo a visão geral.", () => {
       state.view = "dashboard";
@@ -1815,7 +2422,8 @@ function executeVoiceCommand(transcript) {
     return;
   }
   if (
-    /\b(abrir|abra|mostrar|mostre|ver|ir para|va para)\b.*\b(agenda|calendario)\b/.test(command)
+    wantsToOpen &&
+    voiceHasAny(command, ["agenda", "calendário", "minhas contas"])
   ) {
     completeVoiceAction("Abrindo a agenda.", () => {
       state.view = "calendar";
@@ -1824,7 +2432,8 @@ function executeVoiceCommand(transcript) {
     return;
   }
   if (
-    /\b(abrir|abra|mostrar|mostre|ver|ir para|va para)\b.*\b(configuracoes|ajustes)\b/.test(command)
+    wantsToOpen &&
+    voiceHasAny(command, ["configurações", "configuração", "ajustes"])
   ) {
     completeVoiceAction("Abrindo as configurações.", () => {
       state.view = "settings";
@@ -1833,7 +2442,8 @@ function executeVoiceCommand(transcript) {
     return;
   }
   if (
-    /\b(abrir|abra|mostrar|mostre|ver|ir para|va para)\b.*\b(usuarios|permissoes)\b/.test(command)
+    wantsToOpen &&
+    voiceHasAny(command, ["usuários", "usuário", "permissões", "acessos"])
   ) {
     if (state.profile.role !== "master") {
       voiceCommandNotUnderstood(
@@ -1849,97 +2459,51 @@ function executeVoiceCommand(transcript) {
     return;
   }
 
-  const summaryType =
-    /\b(quanto falta pagar|a pagar|despesas? pendentes?|pendencias?)\b/.test(
-      command,
-    )
+  const summaryType = voiceHasAny(command, [
+    "quanto falta pagar",
+    "o que falta pagar",
+    "quanto ainda falta",
+    "a pagar",
+    "despesa pendente",
+    "despesas pendentes",
+    "pendência",
+    "pendências",
+    "contas abertas",
+  ])
       ? "pending"
-      : /\b(detalhar|mostrar|mostre|abrir|abra|ver)\b.*\bentradas\b/.test(
-            command,
-          )
+      : voiceHasAny(command, [
+            "quanto entrou",
+            "total de entradas",
+            "minhas entradas",
+            "minhas receitas",
+            "detalhar entradas",
+            "mostrar entradas",
+            "ver entradas",
+          ])
         ? "income"
-        : /\b(detalhar|mostrar|mostre|abrir|abra|ver)\b.*\bdespesas\b/.test(
-              command,
-            )
+        : voiceHasAny(command, [
+              "quanto gastei",
+              "quanto vou gastar",
+              "total de gastos",
+              "total de despesas",
+              "minhas despesas",
+              "detalhar despesas",
+              "mostrar despesas",
+              "ver despesas",
+            ])
           ? "expense"
-          : /\b(detalhar|mostrar|mostre|abrir|abra|ver)\b.*\bpagos?\b/.test(
-                command,
-              )
+          : voiceHasAny(command, [
+                "quanto já paguei",
+                "total pago",
+                "total que paguei",
+                "despesas pagas",
+                "ver pagamentos",
+              ])
             ? "paid"
             : "";
   if (summaryType) {
     completeVoiceAction("Abrindo o detalhamento solicitado.", () =>
       openSummaryModal(summaryType),
-    );
-    return;
-  }
-
-  const isNewRecord =
-    /\b(novo|nova|criar|adicionar|cadastrar|registrar|lancar)\b/.test(command) &&
-    /\b(lancamento|despesa|gasto|debito|receita|entrada)\b/.test(command);
-  if (isNewRecord) {
-    if (!state.selected) {
-      voiceCommandNotUnderstood(
-        "Selecione ou crie um gerenciamento antes de adicionar lançamentos.",
-      );
-      return;
-    }
-    if (!canEdit()) {
-      voiceCommandNotUnderstood(
-        "Seu acesso permite apenas visualizar lançamentos.",
-      );
-      return;
-    }
-    const type = /\b(receita|entrada)\b/.test(command)
-      ? "income"
-      : "expense";
-    const category = voiceCategory(command, type);
-    const selectedCard =
-      type === "expense" && category === "Cartão"
-        ? voiceCard(command)
-        : null;
-    const amount = voiceAmount(command);
-    const dueDate = voiceDueDate(command);
-    const saveImmediately = voiceWantsImmediateSave(command);
-    const draft = {
-      type,
-      description:
-        category || (type === "income" ? "Nova entrada" : "Nova despesa"),
-      category,
-      cardId: selectedCard?.id || "",
-      amount: amount || "",
-      dueDate,
-      plannedDate: dueDate,
-      status: "pending",
-    };
-    if (saveImmediately) {
-      const missing = [];
-      if (!amount) missing.push("valor");
-      if (!category) missing.push("categoria");
-      if (!dueDate) missing.push("data");
-      if (category === "Cartão" && !selectedCard) missing.push("cartão");
-      if (!missing.length) {
-        void saveVoiceTransaction(
-          voiceTransactionPayload({
-            ...draft,
-            cardSnapshot: cardSnapshot(selectedCard),
-          }),
-          "",
-          `${type === "income" ? "Entrada" : "Despesa"} adicionada e salva.`,
-        );
-        return;
-      }
-      closeVoiceAssistant();
-      openRecordModal(draft);
-      toast(
-        `Não salvei ainda: informe ${missing.join(", ")} e confirme o lançamento.`,
-        "danger",
-      );
-      return;
-    }
-    completeVoiceAction(
-      "Formulário preparado. Revise os dados antes de salvar.",
-      () => openRecordModal(draft),
     );
     return;
   }

@@ -11,7 +11,7 @@ A interface usa HTML, CSS e JavaScript puro. Authentication e Firestore são ace
 - papéis de proprietário, editor e somente leitura;
 - entradas e débitos categorizados;
 - cartões compartilhados por gerenciamento, com identificação das faturas;
-- comandos de voz para navegação, filtros, preparação e salvamento explícito de lançamentos;
+- comandos de voz com vocabulário informal em português brasileiro para navegação, filtros, preparação e salvamento explícito de lançamentos;
 - vencimento, data planejada e data real de pagamento/recebimento independentes;
 - status pendente/pago;
 - estrutura preparada para comprovantes quando o Storage for ativado;
@@ -94,13 +94,17 @@ Inclua o domínio local ou de produção em **Authentication > Settings > Author
 
 ## Comandos de voz
 
-O botão de microfone usa a API de reconhecimento do próprio navegador em `pt-BR`; não exige configuração adicional no Firebase. O usuário precisa permitir acesso ao microfone. Exemplos:
+O botão de microfone usa a API de reconhecimento do próprio navegador em `pt-BR`; não exige configuração adicional no Firebase. A aplicação compara o texto reconhecido com uma base local de intenções, sinônimos, categorias e expressões populares. Exemplos:
 
-- `Nova despesa de 120 reais de internet dia 10 e salvar`;
-- `Marcar internet como pago e salvar`;
-- `Filtrar por renegociação`;
-- `Buscar aluguel`;
-- `Próximo mês`;
-- `Abrir agenda`.
+- `Coloca a conta de luz de 150 pro dia 10 e grava`;
+- `Bota aí internet cento e cinquenta reais pro dia dez e salva`;
+- `Cadastre uma entrada de freela de 800 reais para dia 12 e confirme`;
+- `Paguei a internet hoje, pode salvar`;
+- `Dei baixa na conta de luz e grava`;
+- `Mostra só mercado`;
+- `Quanto ainda falta pagar?`;
+- `Vai pra agenda`.
 
-Sem a palavra **salvar**, comandos que alteram informações financeiras apenas preparam o formulário para revisão. Quando o usuário disser **salvar**, o lançamento será gravado imediatamente se valor, categoria, data e, quando necessário, cartão estiverem identificados. Se faltar algum dado obrigatório, o formulário será aberto preenchido e a aplicação indicará o que precisa ser informado. O OrganizaContas não grava áudio nem transcrições, embora alguns navegadores possam enviar o áudio ao serviço de reconhecimento do próprio fornecedor.
+Datas podem ser informadas como `hoje`, `amanhã`, `dia vinte e cinco`, `10/08` ou `dia 10 do mês que vem`. Confirmações como `salvar`, `gravar`, `confirmar` e `finalizar` autorizam a persistência imediata quando todos os dados obrigatórios forem identificados. A base pode ser ampliada nos objetos `voiceLexicon` e `voiceCategoryAliases`, em `assets/js/app.js`.
+
+Sem uma confirmação explícita, comandos que alteram informações financeiras apenas preparam o formulário para revisão. Quando o usuário disser **salvar**, **gravar**, **confirmar** ou **finalizar**, o lançamento será gravado imediatamente se valor, categoria, data e, quando necessário, cartão estiverem identificados. Se faltar algum dado obrigatório, o formulário será aberto preenchido e a aplicação indicará o que precisa ser informado. O OrganizaContas não grava áudio nem transcrições, embora alguns navegadores possam enviar o áudio ao serviço de reconhecimento do próprio fornecedor.
