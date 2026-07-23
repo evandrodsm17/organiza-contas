@@ -11,6 +11,7 @@ A interface usa HTML, CSS e JavaScript puro. Authentication e Firestore são ace
 - papéis de proprietário, editor e somente leitura;
 - entradas e débitos categorizados;
 - cartões compartilhados por gerenciamento, com identificação das faturas;
+- comandos de voz para navegação, filtros e preparação de lançamentos;
 - vencimento, data planejada e data real de pagamento/recebimento independentes;
 - status pendente/pago;
 - estrutura preparada para comprovantes quando o Storage for ativado;
@@ -90,3 +91,16 @@ npx serve .
 ```
 
 Inclua o domínio local ou de produção em **Authentication > Settings > Authorized domains**.
+
+## Comandos de voz
+
+O botão de microfone usa a API de reconhecimento do próprio navegador em `pt-BR`; não exige configuração adicional no Firebase. O usuário precisa permitir acesso ao microfone. Exemplos:
+
+- `Nova despesa de 120 reais de internet dia 10`;
+- `Marcar internet como pago`;
+- `Filtrar por renegociação`;
+- `Buscar aluguel`;
+- `Próximo mês`;
+- `Abrir agenda`.
+
+Comandos que alteram informações financeiras apenas preparam o formulário. O usuário ainda precisa revisar os dados e confirmar em **Salvar lançamento**. O OrganizaContas não grava áudio nem transcrições, embora alguns navegadores possam enviar o áudio ao serviço de reconhecimento do próprio fornecedor.

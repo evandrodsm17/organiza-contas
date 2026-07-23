@@ -32,6 +32,8 @@ let stopManagements = () => {},
   stopCards = () => {},
   stopUsers = () => {};
 let calendarSearchTimer = 0;
+let voiceRecognition = null;
+let voiceListening = false;
 document.documentElement.dataset.theme =
   localStorage.getItem("organiza-theme") ||
   (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
@@ -251,7 +253,7 @@ function renderApp() {
     timeZone: "UTC",
   }).format(new Date(`${state.month}-01T12:00:00Z`));
   app.innerHTML = `<div class="app-shell"><aside><a class="brand brand-light" href="#"><img class="brand-logo" src="assets/logo.png" alt=""><span>OrganizaContas</span></a><div class="profile"><span>${initials(state.profile.name)}</span><div><b>${esc(state.profile.name)}</b><small>${state.profile.role === "master" ? "Administrador master" : "Usuário"}</small></div></div><nav>${nav("dashboard", "home", "Visão geral")}${nav("calendar", "calendar", "Agenda")}<button class="mobile-new-record" id="mobileNewRecord" aria-label="Criar novo lançamento" title="Novo lançamento" ${!canEdit() ? "disabled" : ""}>${icon("plus")}</button>${nav("settings", "settings", "Configurações")}<button class="nav-item mobile-nav-logout" id="mobileNavLogout" type="button" aria-label="Sair da conta" title="Sair da conta">${icon("logout")}<small>Sair</small></button></nav><button class="logout" id="logout">${icon("logout")} Sair</button></aside>
-  <main class="workspace"><header class="workspace-head"><div class="workspace-title"><span class="mobile-brand">OrganizaContas</span><h1>${viewTitle()}</h1><p>${state.selected ? esc(state.selected.name) : "Crie seu primeiro gerenciamento"}</p></div><div class="head-actions">${managementSelect()}<button class="btn btn-primary" id="newRecord" ${!canEdit() ? "disabled" : ""}>${icon("plus")}<span>Novo lançamento</span></button></div></header>
+  <main class="workspace"><header class="workspace-head"><div class="workspace-title"><span class="mobile-brand">OrganizaContas</span><h1>${viewTitle()}</h1><p>${state.selected ? esc(state.selected.name) : "Crie seu primeiro gerenciamento"}</p></div><div class="head-actions">${managementSelect()}<button class="voice-command-button" id="voiceCommand" type="button" aria-label="Executar comando de voz" title="Comando de voz">${icon("mic")}<span>Comando de voz</span></button><button class="btn btn-primary" id="newRecord" ${!canEdit() ? "disabled" : ""}>${icon("plus")}<span>Novo lançamento</span></button></div></header>
   ${state.view === "users" ? renderUsers() : state.view === "settings" ? renderSettings(monthName) : state.view === "calendar" ? renderCalendar(monthName) : renderDashboard(monthName)}</main></div><div id="modalRoot"></div>`;
   bindShell();
 }
@@ -705,6 +707,9 @@ function bindShell() {
     .querySelectorAll("#logout, #mobileNavLogout")
     .forEach((button) => (button.onclick = openLogoutModal));
   document
+    .querySelector("#voiceCommand")
+    ?.addEventListener("click", openVoiceAssistant);
+  document
     .querySelector("#themeToggle")
     ?.addEventListener("click", toggleTheme);
   document.querySelectorAll("[data-view]").forEach(
@@ -973,6 +978,711 @@ function bindShell() {
         }
       }),
   );
+}
+
+function speechRecognitionApi() {
+  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+}
+
+function openVoiceAssistant() {
+  closeVoiceAssistant();
+  const layer = document.createElement("div");
+  layer.className = "voice-assistant-backdrop";
+  layer.id = "voiceAssistant";
+  layer.innerHTML = `<section class="voice-assistant" role="dialog" aria-modal="true" aria-labelledby="voiceAssistantTitle"><button class="voice-assistant-close" type="button" aria-label="Fechar">×</button><span class="eyebrow">ASSISTENTE DE VOZ</span><div class="voice-assistant-heading"><span class="voice-orb" aria-hidden="true">${icon("mic")}</span><div><h2 id="voiceAssistantTitle">O que deseja fazer?</h2><p id="voiceStatus" aria-live="polite">Preparando o microfone...</p></div></div><blockquote id="voiceTranscript" aria-live="polite">Fale um comando em português.</blockquote><div class="voice-examples"><small>EXPERIMENTE DIZER</small>${[
+    "Nova despesa de 120 reais de internet dia 10",
+    "Marcar internet como pago",
+    "Abrir agenda",
+    "Próximo mês",
+  ]
+    .map(
+      (command) =>
+        `<button type="button" data-voice-example="${attr(command)}">“${esc(command)}”</button>`,
+    )
+    .join("")}</div><div class="voice-assistant-actions"><button class="btn btn-soft" id="voiceRetry" type="button">${icon("mic")} <span>Ouvir novamente</span></button></div><small class="voice-privacy">${icon("shield")} O OrganizaContas não salva seu áudio. O reconhecimento pode ser processado pelo serviço de voz do navegador.</small></section>`;
+  document.body.append(layer);
+  layer.querySelector(".voice-assistant-close").onclick = closeVoiceAssistant;
+  layer.onclick = (event) => {
+    if (event.target === layer) closeVoiceAssistant();
+  };
+  layer.querySelector("#voiceRetry").onclick = () => {
+    if (voiceListening) {
+      voiceRecognition?.stop();
+      return;
+    }
+    startVoiceListening();
+  };
+  layer.querySelectorAll("[data-voice-example]").forEach(
+    (button) =>
+      (button.onclick = () => {
+        const command = button.dataset.voiceExample;
+        updateVoiceAssistant("Interpretando o comando de exemplo...", command);
+        executeVoiceCommand(command);
+      }),
+  );
+  document.addEventListener("keydown", closeVoiceOnEscape);
+  startVoiceListening();
+}
+
+function closeVoiceOnEscape(event) {
+  if (event.key === "Escape") closeVoiceAssistant();
+}
+
+function closeVoiceAssistant() {
+  document.removeEventListener("keydown", closeVoiceOnEscape);
+  if (voiceRecognition) {
+    try {
+      voiceRecognition.abort();
+    } catch {}
+  }
+  voiceRecognition = null;
+  voiceListening = false;
+  document.querySelector("#voiceAssistant")?.remove();
+}
+
+function updateVoiceAssistant(status, transcript = "") {
+  const panel = document.querySelector("#voiceAssistant");
+  if (!panel) return;
+  const statusElement = panel.querySelector("#voiceStatus");
+  const transcriptElement = panel.querySelector("#voiceTranscript");
+  if (statusElement) statusElement.textContent = status;
+  if (transcript && transcriptElement)
+    transcriptElement.textContent = `“${transcript}”`;
+}
+
+function setVoiceListening(listening) {
+  voiceListening = listening;
+  const panel = document.querySelector("#voiceAssistant");
+  if (!panel) return;
+  panel.classList.toggle("is-listening", listening);
+  const retry = panel.querySelector("#voiceRetry");
+  if (retry) {
+    retry.querySelector("span").textContent = listening
+      ? "Parar de ouvir"
+      : "Ouvir novamente";
+  }
+}
+
+function voiceErrorMessage(error) {
+  return {
+    "not-allowed":
+      "Permita o uso do microfone nas configurações do navegador e tente novamente.",
+    "service-not-allowed":
+      "O serviço de voz está bloqueado neste navegador.",
+    "audio-capture":
+      "Nenhum microfone disponível foi encontrado neste aparelho.",
+    "no-speech": "Não ouvi nenhum comando. Toque abaixo para tentar novamente.",
+    network:
+      "O serviço de reconhecimento não respondeu. Verifique sua conexão e tente novamente.",
+    aborted: "A escuta foi interrompida.",
+  }[error] || "Não foi possível usar o reconhecimento de voz neste momento.";
+}
+
+function startVoiceListening() {
+  const Recognition = speechRecognitionApi();
+  const panel = document.querySelector("#voiceAssistant");
+  if (!panel) return;
+  if (!Recognition) {
+    panel.classList.add("is-unsupported");
+    updateVoiceAssistant(
+      "Este navegador não oferece reconhecimento de voz. Tente uma versão atual do Chrome ou Edge.",
+    );
+    panel.querySelector("#voiceRetry").disabled = true;
+    return;
+  }
+  if (voiceRecognition) {
+    try {
+      voiceRecognition.abort();
+    } catch {}
+  }
+  const recognition = new Recognition();
+  voiceRecognition = recognition;
+  recognition.lang = "pt-BR";
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 1;
+  let commandHandled = false;
+  recognition.onstart = () => {
+    setVoiceListening(true);
+    updateVoiceAssistant("Ouvindo... fale seu comando agora.");
+  };
+  recognition.onresult = (event) => {
+    let transcript = "";
+    let finalTranscript = "";
+    for (let index = event.resultIndex; index < event.results.length; index++) {
+      const result = event.results[index];
+      transcript += result[0].transcript;
+      if (result.isFinal) finalTranscript += result[0].transcript;
+    }
+    updateVoiceAssistant(
+      finalTranscript ? "Entendi. Executando..." : "Ouvindo...",
+      transcript.trim(),
+    );
+    if (finalTranscript) {
+      commandHandled = true;
+      setVoiceListening(false);
+      executeVoiceCommand(finalTranscript.trim());
+    }
+  };
+  recognition.onerror = (event) => {
+    commandHandled = true;
+    setVoiceListening(false);
+    updateVoiceAssistant(voiceErrorMessage(event.error));
+  };
+  recognition.onend = () => {
+    if (voiceRecognition === recognition) voiceRecognition = null;
+    setVoiceListening(false);
+    if (!commandHandled && document.querySelector("#voiceAssistant"))
+      updateVoiceAssistant(
+        "A escuta terminou sem um comando completo. Tente novamente.",
+      );
+  };
+  try {
+    recognition.start();
+  } catch (error) {
+    voiceRecognition = null;
+    setVoiceListening(false);
+    updateVoiceAssistant(error.message || voiceErrorMessage());
+  }
+}
+
+function normalizeVoiceText(value = "") {
+  return normalizeSearch(value)
+    .replace(/[^\p{L}\p{N},.$\s-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function voiceCategory(command, type) {
+  const normalized = normalizeVoiceText(command);
+  const categoryList = categories[type];
+  const direct = categoryList
+    .slice()
+    .sort((a, b) => b.length - a.length)
+    .find((category) =>
+      normalized.includes(normalizeVoiceText(category)),
+    );
+  if (direct) return direct;
+  const aliases =
+    type === "income"
+      ? [
+          [["aluguel", "locacao", "inquilino"], "Aluguel"],
+          [["salario", "pagamento do trabalho"], "Salário"],
+          [["freela", "servico freelance"], "Freelance"],
+          [["reembolso"], "Reembolso"],
+          [["venda"], "Venda"],
+        ]
+      : [
+          [["fatura", "cartao"], "Cartão"],
+          [["luz"], "Energia"],
+          [["telefone", "telefonia"], "Celular"],
+          [["comida", "mercado", "supermercado"], "Alimentação"],
+          [["aluguel", "casa", "condominio"], "Moradia"],
+          [["carro", "combustivel", "uber", "onibus"], "Transporte"],
+          [["medico", "remedio", "farmacia"], "Saúde"],
+          [["escola", "faculdade", "curso"], "Educação"],
+          [
+            ["acordo", "renegociacao", "divida", "dividas"],
+            "Acordos e dívidas",
+          ],
+        ];
+  return (
+    aliases.find(([terms]) =>
+      terms.some((term) => normalized.includes(term)),
+    )?.[1] || ""
+  );
+}
+
+function voiceCard(command) {
+  const normalized = normalizeVoiceText(command);
+  return (
+    state.cards
+      .filter((card) => card.active !== false)
+      .sort((a, b) => b.name.length - a.name.length)
+      .find((card) => normalized.includes(normalizeVoiceText(card.name))) ||
+    null
+  );
+}
+
+function portugueseNumber(value) {
+  const numbers = {
+    zero: 0,
+    um: 1,
+    uma: 1,
+    dois: 2,
+    duas: 2,
+    tres: 3,
+    quatro: 4,
+    cinco: 5,
+    seis: 6,
+    sete: 7,
+    oito: 8,
+    nove: 9,
+    dez: 10,
+    onze: 11,
+    doze: 12,
+    treze: 13,
+    quatorze: 14,
+    catorze: 14,
+    quinze: 15,
+    dezesseis: 16,
+    dezassete: 17,
+    dezessete: 17,
+    dezoito: 18,
+    dezenove: 19,
+    vinte: 20,
+    trinta: 30,
+    quarenta: 40,
+    cinquenta: 50,
+    sessenta: 60,
+    setenta: 70,
+    oitenta: 80,
+    noventa: 90,
+    cem: 100,
+    cento: 100,
+    duzentos: 200,
+    trezentos: 300,
+    quatrocentos: 400,
+    quinhentos: 500,
+    seiscentos: 600,
+    setecentos: 700,
+    oitocentos: 800,
+    novecentos: 900,
+  };
+  let total = 0;
+  let current = 0;
+  let found = false;
+  normalizeVoiceText(value)
+    .split(" ")
+    .forEach((token) => {
+      if (token === "e") return;
+      if (token === "mil") {
+        total += (current || 1) * 1000;
+        current = 0;
+        found = true;
+        return;
+      }
+      if (numbers[token] !== undefined) {
+        current += numbers[token];
+        found = true;
+      }
+    });
+  return found ? total + current : 0;
+}
+
+function voiceAmount(command) {
+  const digitMatch =
+    command.match(
+      /(?:r\$\s*|(?:no\s+)?valor\s+de\s+|de\s+)(\d[\d.]*?(?:,\d{1,2})?)(?:\s*reais?)?(?:\s|$)/,
+    ) || command.match(/(\d[\d.]*?(?:,\d{1,2})?)\s*reais?/);
+  if (digitMatch) {
+    const raw = digitMatch[1];
+    const normalized = raw.includes(",")
+      ? raw.replaceAll(".", "").replace(",", ".")
+      : /^\d{1,3}(?:\.\d{3})+$/.test(raw)
+        ? raw.replaceAll(".", "")
+        : raw;
+    const amount = Number(normalized);
+    if (amount > 0) return amount;
+  }
+  const words = command.match(
+    /(?:valor\s+de\s+|de\s+)([\p{L}\s-]+?)\s+reais?/u,
+  );
+  return words ? portugueseNumber(words[1]) : 0;
+}
+
+function voiceDueDate(command) {
+  const dayMatch = command.match(/\bdia\s+(\d{1,2})\b/);
+  if (!dayMatch) return "";
+  const [year, month] = state.month.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const day = Math.min(Math.max(Number(dayMatch[1]), 1), lastDay);
+  return `${state.month}-${String(day).padStart(2, "0")}`;
+}
+
+function shiftVoiceMonth(offset) {
+  const [year, month] = state.month.split("-").map(Number);
+  state.month = new Date(Date.UTC(year, month - 1 + offset, 1))
+    .toISOString()
+    .slice(0, 7);
+}
+
+function voiceMonthFromName(command) {
+  const monthNames = [
+    "janeiro",
+    "fevereiro",
+    "marco",
+    "abril",
+    "maio",
+    "junho",
+    "julho",
+    "agosto",
+    "setembro",
+    "outubro",
+    "novembro",
+    "dezembro",
+  ];
+  const monthIndex = monthNames.findIndex((name) => command.includes(name));
+  if (monthIndex < 0) return "";
+  const informedYear = command.match(/\b(20\d{2})\b/)?.[1];
+  const currentYear = state.month.slice(0, 4);
+  return `${informedYear || currentYear}-${String(monthIndex + 1).padStart(2, "0")}`;
+}
+
+function completeVoiceAction(message, action) {
+  closeVoiceAssistant();
+  action();
+  toast(message);
+}
+
+function voiceCommandNotUnderstood(message = "") {
+  updateVoiceAssistant(
+    message ||
+      "Não reconheci uma ação nesse comando. Tente usar uma das frases de exemplo.",
+  );
+}
+
+function openVoiceRecordChoice(items, received = false) {
+  showModal(
+    `<article class="modal modal-large voice-choice-modal"><button class="modal-close" type="button">×</button><span class="eyebrow">CONFIRME O LANÇAMENTO</span><h2>Qual registro deseja ${received ? "marcar como recebido" : "marcar como pago"}?</h2><p>Nenhuma alteração será salva antes da sua confirmação no formulário.</p><div class="summary-detail-list">${items
+      .map(
+        (item) =>
+          `<button class="summary-detail-row" type="button" data-voice-record="${item.id}">${categoryIconBadge(item)}<span class="summary-detail-copy"><b>${esc(item.description)}</b><small>${formatDate(item.dueDate)} · ${esc(categoryMeta(item))}</small></span><strong>${money.format(item.amount)}</strong></button>`,
+      )
+      .join("")}</div></article>`,
+  );
+  document.querySelectorAll("[data-voice-record]").forEach(
+    (button) =>
+      (button.onclick = () => {
+        const item = state.transactions.find(
+          (transaction) => transaction.id === button.dataset.voiceRecord,
+        );
+        if (!item) return;
+        openRecordModal({ ...item, status: "paid", paidDate: todayKey() });
+        toast("Revise os dados e confirme em Salvar lançamento.");
+      }),
+  );
+}
+
+function voiceMarkAsCompleted(command) {
+  const received = /\b(recebido|recebida|recebi)\b/.test(command);
+  const explicit = command.match(
+    /(?:marcar|marque|definir)\s+(?:o\s+|a\s+)?(.+?)\s+como\s+(?:pago|paga|recebido|recebida)\b/,
+  );
+  const natural = command.match(/\b(?:paguei|recebi)\s+(?:o\s+|a\s+)?(.+)/);
+  const query = (explicit?.[1] || natural?.[1] || "")
+    .replace(/\b(?:hoje|agora)\b/g, "")
+    .trim();
+  if (!query) return false;
+  if (!canEdit()) {
+    voiceCommandNotUnderstood(
+      "Seu acesso permite apenas visualizar lançamentos.",
+    );
+    return true;
+  }
+  const queryWords = query
+    .split(" ")
+    .filter(
+      (word) =>
+        word.length > 2 &&
+        ![
+          "conta",
+          "fatura",
+          "despesa",
+          "receita",
+          "pagamento",
+          "para",
+        ].includes(word),
+    );
+  const candidates = monthTransactions().filter(
+    (item) => {
+      const haystack = normalizeVoiceText(
+        `${item.description} ${categoryMeta(item)}`,
+      );
+      return (
+        item.type === (received ? "income" : "expense") &&
+        item.status !== "paid" &&
+        (haystack.includes(query) ||
+          (queryWords.length &&
+            queryWords.every((word) => haystack.includes(word))))
+      );
+    },
+  );
+  if (!candidates.length) {
+    voiceCommandNotUnderstood(
+      `Não encontrei nenhum lançamento pendente com “${query}” neste mês.`,
+    );
+    return true;
+  }
+  completeVoiceAction(
+    candidates.length === 1
+      ? "Lançamento encontrado. Confirme os dados antes de salvar."
+      : `${candidates.length} lançamentos encontrados. Escolha o correto.`,
+    () => {
+      if (candidates.length === 1)
+        openRecordModal({
+          ...candidates[0],
+          status: "paid",
+          paidDate: todayKey(),
+        });
+      else openVoiceRecordChoice(candidates, received);
+    },
+  );
+  return true;
+}
+
+function executeVoiceCommand(transcript) {
+  const command = normalizeVoiceText(transcript);
+  if (!command) return voiceCommandNotUnderstood();
+
+  if (/\b(ajuda|comandos|o que posso dizer)\b/.test(command)) {
+    updateVoiceAssistant(
+      "Você pode navegar, mudar o mês, buscar, filtrar, iniciar lançamentos e preparar um registro para pagamento.",
+      transcript,
+    );
+    return;
+  }
+
+  if (voiceMarkAsCompleted(command)) return;
+
+  if (/\b(limpar|remover)\s+(os\s+)?filtros\b/.test(command)) {
+    completeVoiceAction("Filtros removidos.", () => {
+      state.calendarFilters = {
+        query: "",
+        expenseCategory: "",
+        cardId: "",
+        sort: "date",
+      };
+      state.view = "calendar";
+      renderApp();
+    });
+    return;
+  }
+
+  const searchMatch = command.match(
+    /\b(?:buscar|busque|pesquisar|pesquise|procurar|procure)\s+(.+)/,
+  );
+  if (searchMatch) {
+    completeVoiceAction(`Buscando por “${searchMatch[1]}”.`, () => {
+      state.calendarFilters = {
+        query: searchMatch[1],
+        expenseCategory: "",
+        cardId: "",
+        sort: "date",
+      };
+      state.calendarLayout = "agenda";
+      state.view = "calendar";
+      localStorage.setItem("organiza-calendar-layout", "agenda");
+      renderApp();
+    });
+    return;
+  }
+
+  if (/\b(filtrar|filtre)\b/.test(command)) {
+    const category = voiceCategory(command, "expense");
+    if (!category) {
+      voiceCommandNotUnderstood(
+        "Não identifiquei a categoria de despesa para aplicar o filtro.",
+      );
+      return;
+    }
+    const selectedCard = category === "Cartão" ? voiceCard(command) : null;
+    completeVoiceAction(
+      selectedCard
+        ? `Mostrando faturas do cartão ${selectedCard.name}.`
+        : `Mostrando despesas de ${category}.`,
+      () => {
+        state.calendarFilters = {
+          query: "",
+          expenseCategory: category,
+          cardId: selectedCard?.id || "",
+          sort: "date",
+        };
+        state.calendarLayout = "agenda";
+        state.view = "calendar";
+        localStorage.setItem("organiza-calendar-layout", "agenda");
+        renderApp();
+      },
+    );
+    return;
+  }
+
+  if (
+    /\b(menor\s+(?:para|pro)\s+(?:o\s+)?maior|crescente)\b/.test(command)
+  ) {
+    completeVoiceAction("Lançamentos ordenados do menor valor para o maior.", () => {
+      state.calendarFilters.sort = "amount-asc";
+      state.calendarLayout = "agenda";
+      state.view = "calendar";
+      renderApp();
+    });
+    return;
+  }
+  if (
+    /\b(maior\s+(?:para|pro)\s+(?:o\s+)?menor|decrescente)\b/.test(command)
+  ) {
+    completeVoiceAction("Lançamentos ordenados do maior valor para o menor.", () => {
+      state.calendarFilters.sort = "amount-desc";
+      state.calendarLayout = "agenda";
+      state.view = "calendar";
+      renderApp();
+    });
+    return;
+  }
+
+  if (/\b(proximo mes|mes seguinte|mes que vem)\b/.test(command)) {
+    completeVoiceAction("Avançando para o próximo mês.", () => {
+      shiftVoiceMonth(1);
+      renderApp();
+    });
+    return;
+  }
+  if (/\b(mes anterior|mes passado)\b/.test(command)) {
+    completeVoiceAction("Voltando para o mês anterior.", () => {
+      shiftVoiceMonth(-1);
+      renderApp();
+    });
+    return;
+  }
+  if (/\b(mes atual|voltar para hoje|ir para hoje)\b/.test(command)) {
+    completeVoiceAction("Mostrando o mês atual.", () => {
+      state.month = new Date().toISOString().slice(0, 7);
+      renderApp();
+    });
+    return;
+  }
+  const namedMonth = voiceMonthFromName(command);
+  if (
+    namedMonth &&
+    /\b(ir|abrir|abra|mostrar|mostre|mudar|va)\b/.test(command)
+  ) {
+    completeVoiceAction("Período atualizado.", () => {
+      state.month = namedMonth;
+      renderApp();
+    });
+    return;
+  }
+
+  if (/\b(modo|tema)\s+escuro\b/.test(command)) {
+    completeVoiceAction("Modo escuro ativado.", () =>
+      setThemePreference("dark"),
+    );
+    return;
+  }
+  if (/\b(modo|tema)\s+claro\b/.test(command)) {
+    completeVoiceAction("Modo claro ativado.", () =>
+      setThemePreference("light"),
+    );
+    return;
+  }
+
+  if (
+    /\b(abrir|abra|mostrar|mostre|ver|ir para|va para|voltar para)\b.*\b(visao geral|inicio|dashboard)\b/.test(
+      command,
+    )
+  ) {
+    completeVoiceAction("Abrindo a visão geral.", () => {
+      state.view = "dashboard";
+      renderApp();
+    });
+    return;
+  }
+  if (
+    /\b(abrir|abra|mostrar|mostre|ver|ir para|va para)\b.*\b(agenda|calendario)\b/.test(command)
+  ) {
+    completeVoiceAction("Abrindo a agenda.", () => {
+      state.view = "calendar";
+      renderApp();
+    });
+    return;
+  }
+  if (
+    /\b(abrir|abra|mostrar|mostre|ver|ir para|va para)\b.*\b(configuracoes|ajustes)\b/.test(command)
+  ) {
+    completeVoiceAction("Abrindo as configurações.", () => {
+      state.view = "settings";
+      renderApp();
+    });
+    return;
+  }
+  if (
+    /\b(abrir|abra|mostrar|mostre|ver|ir para|va para)\b.*\b(usuarios|permissoes)\b/.test(command)
+  ) {
+    if (state.profile.role !== "master") {
+      voiceCommandNotUnderstood(
+        "A gestão de usuários está disponível somente para o administrador master.",
+      );
+      return;
+    }
+    completeVoiceAction("Abrindo a gestão de usuários.", () => {
+      state.view = "users";
+      observeUsers();
+      renderApp();
+    });
+    return;
+  }
+
+  const summaryType = /\b(detalhar|mostrar|mostre|abrir|abra|ver)\b.*\bentradas\b/.test(
+    command,
+  )
+    ? "income"
+    : /\b(detalhar|mostrar|mostre|abrir|abra|ver)\b.*\bdespesas\b/.test(command)
+      ? "expense"
+      : /\b(detalhar|mostrar|mostre|abrir|abra|ver)\b.*\bpagos?\b/.test(command)
+        ? "paid"
+        : "";
+  if (summaryType) {
+    completeVoiceAction("Abrindo o detalhamento solicitado.", () =>
+      openSummaryModal(summaryType),
+    );
+    return;
+  }
+
+  const isNewRecord =
+    /\b(novo|nova|criar|adicionar|cadastrar|registrar|lancar)\b/.test(command) &&
+    /\b(lancamento|despesa|gasto|debito|receita|entrada)\b/.test(command);
+  if (isNewRecord) {
+    if (!state.selected) {
+      voiceCommandNotUnderstood(
+        "Selecione ou crie um gerenciamento antes de adicionar lançamentos.",
+      );
+      return;
+    }
+    if (!canEdit()) {
+      voiceCommandNotUnderstood(
+        "Seu acesso permite apenas visualizar lançamentos.",
+      );
+      return;
+    }
+    const type = /\b(receita|entrada)\b/.test(command)
+      ? "income"
+      : "expense";
+    const category = voiceCategory(command, type);
+    const selectedCard =
+      type === "expense" && category === "Cartão"
+        ? voiceCard(command)
+        : null;
+    const amount = voiceAmount(command);
+    const dueDate = voiceDueDate(command);
+    const draft = {
+      type,
+      description:
+        category || (type === "income" ? "Nova entrada" : "Nova despesa"),
+      category,
+      cardId: selectedCard?.id || "",
+      amount: amount || "",
+      dueDate,
+      plannedDate: dueDate,
+      status: "pending",
+    };
+    completeVoiceAction(
+      "Formulário preparado. Revise os dados antes de salvar.",
+      () => openRecordModal(draft),
+    );
+    return;
+  }
+
+  voiceCommandNotUnderstood();
 }
 
 function observeUsers() {
@@ -1638,6 +2348,9 @@ function icon(name) {
       '<path d="M12 3a9 9 0 0 0 0 18h1.5a1.5 1.5 0 0 0 0-3H12a2 2 0 0 1 0-4h4a5 5 0 0 0 0-10Z"/><circle cx="7.5" cy="10.5" r=".7"/><circle cx="10" cy="7" r=".7"/><circle cx="14" cy="7" r=".7"/>',
     monitor:
       '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
+    mic: '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3M8 22h8"/>',
+    shield:
+      '<path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3Z"/><path d="m9 12 2 2 4-4"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
     logout:
       '<path d="M10 17l5-5-5-5M15 12H3"/><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>',

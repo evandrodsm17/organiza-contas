@@ -1744,6 +1744,348 @@ html:not([data-theme="dark"]) :is(
   border-color: rgba(255, 255, 255, 0.28);
 }
 
+/* Assistente de comandos por voz */
+.voice-command-button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 13px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.voice-command-button:hover {
+  border-color: #b7c7ef;
+  background: #f2f5ff;
+  color: #294bbb;
+  transform: translateY(-1px);
+}
+
+.voice-command-button .ui-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.voice-assistant-backdrop {
+  position: fixed;
+  z-index: 170;
+  inset: 0;
+  display: grid;
+  overflow: auto;
+  place-items: center;
+  padding: 20px;
+  background: rgba(6, 11, 24, 0.62);
+  backdrop-filter: blur(9px);
+}
+
+.voice-assistant {
+  position: relative;
+  width: min(560px, 100%);
+  margin: auto;
+  padding: 30px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--surface);
+  box-shadow: 0 28px 90px rgba(6, 11, 24, 0.26);
+  animation: modal-in 0.22s ease-out;
+}
+
+.voice-assistant-close {
+  position: absolute;
+  top: 15px;
+  right: 16px;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  place-items: center;
+  background: transparent;
+  color: var(--muted);
+  font-size: 24px;
+}
+
+.voice-assistant-close:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.voice-assistant-heading {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-top: 16px;
+}
+
+.voice-assistant-heading > div {
+  min-width: 0;
+}
+
+.voice-assistant h2 {
+  margin: 0 0 4px;
+  font-size: 22px;
+}
+
+.voice-assistant-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.voice-orb {
+  position: relative;
+  display: grid;
+  width: 56px;
+  height: 56px;
+  flex: 0 0 56px;
+  border-radius: 50%;
+  place-items: center;
+  background: #e8efff;
+  color: #3157d5;
+}
+
+.voice-orb::before,
+.voice-orb::after {
+  position: absolute;
+  inset: -1px;
+  border: 1px solid rgba(74, 118, 234, 0.35);
+  border-radius: inherit;
+  content: "";
+  opacity: 0;
+}
+
+.voice-orb .ui-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.voice-assistant-backdrop.is-listening .voice-orb {
+  background: linear-gradient(145deg, #4a76ea, #294bbb);
+  color: #fff;
+}
+
+.voice-assistant-backdrop.is-listening .voice-orb::before {
+  animation: voice-pulse 1.7s ease-out infinite;
+}
+
+.voice-assistant-backdrop.is-listening .voice-orb::after {
+  animation: voice-pulse 1.7s 0.55s ease-out infinite;
+}
+
+@keyframes voice-pulse {
+  0% {
+    scale: 0.94;
+    opacity: 0.75;
+  }
+  100% {
+    scale: 1.62;
+    opacity: 0;
+  }
+}
+
+#voiceTranscript {
+  min-height: 58px;
+  margin: 22px 0 18px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-soft);
+  color: var(--ink);
+  font-size: 13px;
+  font-style: normal;
+  line-height: 1.55;
+}
+
+.voice-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.voice-examples > small {
+  width: 100%;
+  margin-bottom: 2px;
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+}
+
+.voice-examples button {
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 9px;
+  text-align: left;
+}
+
+.voice-examples button:hover {
+  border-color: #b7c7ef;
+  background: #f2f5ff;
+  color: #294bbb;
+}
+
+.voice-assistant-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+.voice-assistant-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.voice-assistant-actions .ui-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.voice-privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-top: 17px;
+  color: var(--muted);
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+.voice-privacy .ui-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+}
+
+.voice-assistant-backdrop.is-unsupported .voice-orb {
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+
+.voice-choice-modal .summary-detail-list {
+  margin-top: 14px;
+}
+
+html[data-theme="dark"] .voice-command-button:hover,
+html[data-theme="dark"] .voice-examples button:hover {
+  border-color: #455a91;
+  background: #1b315f;
+  color: #b6c9fa;
+}
+
+html[data-theme="dark"] .voice-orb {
+  background: #1b315f;
+  color: #a9c2ff;
+}
+
+@media (max-width: 1050px) {
+  .voice-command-button span {
+    display: none;
+  }
+
+  .voice-command-button {
+    width: 42px;
+    padding-inline: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .voice-command-button {
+    position: fixed;
+    right: 15px;
+    bottom: calc(91px + env(safe-area-inset-bottom));
+    z-index: 30;
+    width: 48px;
+    height: 48px;
+    min-height: 48px;
+    border: 1px solid rgba(255, 255, 255, 0.34);
+    border-radius: 50%;
+    background: linear-gradient(145deg, #4a76ea, #294bbb);
+    color: #fff;
+    box-shadow: 0 12px 28px rgba(28, 55, 139, 0.32);
+  }
+
+  .voice-command-button:hover {
+    background: linear-gradient(145deg, #5b84ee, #294bbb);
+    color: #fff;
+  }
+
+  .voice-assistant-backdrop {
+    align-items: end;
+    padding: 0;
+  }
+
+  .voice-assistant {
+    width: 100%;
+    max-height: min(88vh, 720px);
+    overflow-y: auto;
+    margin: 0;
+    padding: 25px 18px calc(20px + env(safe-area-inset-bottom));
+    border-width: 1px 0 0;
+    border-radius: 24px 24px 0 0;
+    animation: voice-sheet-in 0.24s ease-out;
+  }
+
+  .voice-assistant-heading {
+    padding-right: 28px;
+  }
+
+  .voice-assistant h2 {
+    font-size: 19px;
+  }
+
+  .voice-orb {
+    width: 50px;
+    height: 50px;
+    flex-basis: 50px;
+  }
+
+  .voice-examples {
+    flex-direction: column;
+  }
+
+  .voice-examples button {
+    width: 100%;
+    min-height: 38px;
+  }
+
+  .voice-assistant-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@keyframes voice-sheet-in {
+  from {
+    translate: 0 30px;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-orb::before,
+  .voice-orb::after {
+    animation: none !important;
+  }
+}
+
 /* Tema, ícones e navegação mensal */
 :root {
   color-scheme: light;
