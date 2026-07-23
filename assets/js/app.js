@@ -34,6 +34,7 @@ let stopManagements = () => {},
 let calendarSearchTimer = 0;
 let voiceRecognition = null;
 let voiceListening = false;
+let voiceFinalizeCapture = null;
 document.documentElement.dataset.theme =
   localStorage.getItem("organiza-theme") ||
   (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
@@ -434,7 +435,29 @@ function renderDashboard(monthName) {
       item.status !== "paid" &&
       item.dueDate === todayKey(),
   );
-  return `<div class="content-head">${monthControl(monthName)}<span>${monthTransactions().length} lançamentos no período</span></div>${dueToday.length ? renderTodayAlert(dueToday) : ""}<section class="summary-grid">${summary("Entradas", total.income, "success", "↗", "income")}${summary("Despesas", total.expense, "danger", "↘", "expense")}${summary("Pago", total.paid, "info", "✓", "paid")}${summary("Saldo previsto", total.income - total.expense, total.income - total.expense >= 0 ? "success" : "danger", "=")}</section>${renderExpenseInsights(monthName)}<section class="dashboard-grid">${renderBudgetScore(total.expense)}<article class="panel upcoming-panel"><div class="panel-head"><div><h2>Lançamentos do período</h2><p>Organizados em relação à data de hoje</p></div><button class="text-btn" data-go="calendar" data-layout="agenda">Ver na agenda</button></div>${list.length ? renderDashboardGroups(list) : empty("Nenhum lançamento neste mês.")}</article><article class="panel status-panel"><div class="panel-head"><div><h2>Situação das despesas</h2><p>Acompanhamento do mês</p></div></div><div class="donut" style="--paid:${total.expense ? Math.round((total.paid / total.expense) * 100) : 0}"><div><b>${total.expense ? Math.round((total.paid / total.expense) * 100) : 0}%</b><span>pago</span></div></div><div class="legend"><span><i class="dot blue"></i>Pago <b>${money.format(total.paid)}</b></span><span><i class="dot orange"></i>Pendente <b>${money.format(total.pending)}</b></span></div></article></section>`;
+  return `<div class="content-head">${monthControl(monthName)}<span>${monthTransactions().length} lançamentos no período</span></div>${dueToday.length ? renderTodayAlert(dueToday) : ""}<section class="summary-grid">${summary("Entradas", total.income, "success", "↗", "income")}${summary("Despesas", total.expense, "danger", "↘", "expense")}${summary("Pago", total.paid, "info", "✓", "paid")}${summary("Saldo previsto", total.income - total.expense, total.income - total.expense >= 0 ? "success" : "danger", "=")}</section>${renderPendingPaymentStatus(total)}${renderExpenseInsights(monthName)}<section class="dashboard-grid">${renderBudgetScore(total.expense)}<article class="panel upcoming-panel"><div class="panel-head"><div><h2>Lançamentos do período</h2><p>Organizados em relação à data de hoje</p></div><button class="text-btn" data-go="calendar" data-layout="agenda">Ver na agenda</button></div>${list.length ? renderDashboardGroups(list) : empty("Nenhum lançamento neste mês.")}</article><article class="panel status-panel"><div class="panel-head"><div><h2>Situação das despesas</h2><p>Acompanhamento do mês</p></div></div><div class="donut" style="--paid:${total.expense ? Math.round((total.paid / total.expense) * 100) : 0}"><div><b>${total.expense ? Math.round((total.paid / total.expense) * 100) : 0}%</b><span>pago</span></div></div><div class="legend"><span><i class="dot blue"></i>Pago <b>${money.format(total.paid)}</b></span><span><i class="dot orange"></i>Pendente <b>${money.format(total.pending)}</b></span></div></article></section>`;
+}
+function renderPendingPaymentStatus(total) {
+  if (!total.expense) return "";
+  const pendingItems = monthTransactions().filter(
+    (item) => item.type === "expense" && item.status !== "paid",
+  );
+  const overdueCount = pendingItems.filter(
+    (item) => item.dueDate && item.dueDate < todayKey(),
+  ).length;
+  const paidPercent = Math.min(
+    100,
+    Math.round((total.paid / total.expense) * 100),
+  );
+  const complete = pendingItems.length === 0;
+  const pendingLabel =
+    pendingItems.length === 1
+      ? "1 despesa aguardando baixa"
+      : `${pendingItems.length} despesas aguardando baixa`;
+  const statusCopy = complete
+    ? "Todas as despesas previstas deste mês já foram marcadas como pagas."
+    : `${pendingLabel}${overdueCount ? ` · ${overdueCount} ${overdueCount === 1 ? "está em atraso" : "estão em atraso"}` : ""}.`;
+  return `<section class="pending-payment-panel ${complete ? "is-complete" : "has-pending"}" aria-labelledby="pendingPaymentTitle"><span class="pending-payment-icon" aria-hidden="true">${icon(complete ? "shield" : "receipt")}</span><div class="pending-payment-copy"><small>ACOMPANHAMENTO DE PAGAMENTOS</small><h2 id="pendingPaymentTitle">${complete ? "Tudo pago neste mês" : "Ainda falta marcar como pago"}</h2><p>${statusCopy}</p></div><div class="pending-payment-total"><small>${complete ? "Total pago" : "Ainda a pagar"}</small><b>${money.format(complete ? total.paid : total.pending)}</b><span>de ${money.format(total.expense)} em despesas</span></div><div class="pending-payment-progress"><div><span>${paidPercent}% concluído</span><span>${100 - paidPercent}% pendente</span></div><i role="progressbar" aria-label="${paidPercent}% das despesas marcadas como pagas" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${paidPercent}"><span style="--payment-progress:${paidPercent}%"></span></i></div><button class="pending-payment-action" type="button" data-summary="${complete ? "paid" : "pending"}">${complete ? "Ver pagamentos" : "Ver pendências"} <span aria-hidden="true">›</span></button></section>`;
 }
 function expenseCategoryReport() {
   const expenses = monthTransactions().filter((item) => item.type === "expense");
@@ -993,8 +1016,8 @@ function openVoiceAssistant() {
   layer.className = "voice-assistant-backdrop";
   layer.id = "voiceAssistant";
   layer.innerHTML = `<section class="voice-assistant" role="dialog" aria-modal="true" aria-labelledby="voiceAssistantTitle"><button class="voice-assistant-close" type="button" aria-label="Fechar">×</button><span class="eyebrow">ASSISTENTE DE VOZ</span><div class="voice-assistant-heading"><span class="voice-orb" aria-hidden="true">${icon("mic")}</span><div><h2 id="voiceAssistantTitle">O que deseja fazer?</h2><p id="voiceStatus" aria-live="polite">Preparando o microfone...</p></div></div><blockquote id="voiceTranscript" aria-live="polite">Fale um comando em português.</blockquote><div class="voice-examples"><small>EXPERIMENTE DIZER</small>${[
-    "Nova despesa de 120 reais de internet dia 10",
-    "Marcar internet como pago",
+    "Nova despesa de 120 reais de internet dia 10 e salvar",
+    "Marcar internet como pago e salvar",
     "Abrir agenda",
     "Próximo mês",
   ]
@@ -1010,7 +1033,7 @@ function openVoiceAssistant() {
   };
   layer.querySelector("#voiceRetry").onclick = () => {
     if (voiceListening) {
-      voiceRecognition?.stop();
+      voiceFinalizeCapture?.();
       return;
     }
     startVoiceListening();
@@ -1033,6 +1056,7 @@ function closeVoiceOnEscape(event) {
 
 function closeVoiceAssistant() {
   document.removeEventListener("keydown", closeVoiceOnEscape);
+  voiceFinalizeCapture = null;
   if (voiceRecognition) {
     try {
       voiceRecognition.abort();
@@ -1098,52 +1122,133 @@ function startVoiceListening() {
       voiceRecognition.abort();
     } catch {}
   }
+  voiceFinalizeCapture = null;
   const recognition = new Recognition();
   voiceRecognition = recognition;
   recognition.lang = "pt-BR";
-  recognition.continuous = false;
+  recognition.continuous = true;
   recognition.interimResults = true;
   recognition.maxAlternatives = 1;
-  let commandHandled = false;
+  let capturedTranscript = "";
+  let currentFinalTranscript = "";
+  let currentInterimTranscript = "";
+  let silenceTimer = 0;
+  let finished = false;
+  const combinedTranscript = () =>
+    [capturedTranscript, currentFinalTranscript, currentInterimTranscript]
+      .filter(Boolean)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+  const clearSilenceTimer = () => {
+    if (silenceTimer) clearTimeout(silenceTimer);
+    silenceTimer = 0;
+  };
+  const finishCommand = () => {
+    if (finished) return;
+    finished = true;
+    clearSilenceTimer();
+    const command = combinedTranscript();
+    voiceFinalizeCapture = null;
+    setVoiceListening(false);
+    try {
+      recognition.stop();
+    } catch {}
+    if (!command) {
+      updateVoiceAssistant(
+        "Não ouvi um comando completo. Toque abaixo para tentar novamente.",
+      );
+      return;
+    }
+    updateVoiceAssistant("Entendi. Executando...", command);
+    executeVoiceCommand(command);
+  };
+  const waitForMoreSpeech = () => {
+    clearSilenceTimer();
+    if (!combinedTranscript()) return;
+    updateVoiceAssistant(
+      "Aguardando você terminar de falar...",
+      combinedTranscript(),
+    );
+    silenceTimer = setTimeout(finishCommand, 3000);
+  };
+  voiceFinalizeCapture = finishCommand;
   recognition.onstart = () => {
     setVoiceListening(true);
-    updateVoiceAssistant("Ouvindo... fale seu comando agora.");
+    updateVoiceAssistant(
+      capturedTranscript
+        ? "Continue falando. Vou aguardar você terminar."
+        : "Ouvindo... fale seu comando agora.",
+    );
   };
   recognition.onresult = (event) => {
-    let transcript = "";
-    let finalTranscript = "";
-    for (let index = event.resultIndex; index < event.results.length; index++) {
+    currentFinalTranscript = "";
+    currentInterimTranscript = "";
+    for (let index = 0; index < event.results.length; index++) {
       const result = event.results[index];
-      transcript += result[0].transcript;
-      if (result.isFinal) finalTranscript += result[0].transcript;
+      if (result.isFinal)
+        currentFinalTranscript += `${result[0].transcript} `;
+      else currentInterimTranscript += `${result[0].transcript} `;
     }
-    updateVoiceAssistant(
-      finalTranscript ? "Entendi. Executando..." : "Ouvindo...",
-      transcript.trim(),
-    );
-    if (finalTranscript) {
-      commandHandled = true;
-      setVoiceListening(false);
-      executeVoiceCommand(finalTranscript.trim());
-    }
+    currentFinalTranscript = currentFinalTranscript.trim();
+    currentInterimTranscript = currentInterimTranscript.trim();
+    updateVoiceAssistant("Ouvindo... pode continuar.", combinedTranscript());
+    waitForMoreSpeech();
   };
   recognition.onerror = (event) => {
-    commandHandled = true;
+    if (finished || !document.querySelector("#voiceAssistant")) return;
+    if (event.error === "no-speech" && combinedTranscript()) {
+      waitForMoreSpeech();
+      return;
+    }
+    finished = true;
+    clearSilenceTimer();
+    voiceFinalizeCapture = null;
     setVoiceListening(false);
     updateVoiceAssistant(voiceErrorMessage(event.error));
   };
   recognition.onend = () => {
-    if (voiceRecognition === recognition) voiceRecognition = null;
+    if (finished || !document.querySelector("#voiceAssistant")) {
+      if (voiceRecognition === recognition) voiceRecognition = null;
+      return;
+    }
+    const completedSegment = [
+      currentFinalTranscript,
+      currentInterimTranscript,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    if (completedSegment) {
+      capturedTranscript = [capturedTranscript, completedSegment]
+        .filter(Boolean)
+        .join(" ");
+      currentFinalTranscript = "";
+      currentInterimTranscript = "";
+      waitForMoreSpeech();
+    }
     setVoiceListening(false);
-    if (!commandHandled && document.querySelector("#voiceAssistant"))
+    if (combinedTranscript()) {
+      setTimeout(() => {
+        if (finished || !document.querySelector("#voiceAssistant")) return;
+        try {
+          recognition.start();
+        } catch {
+          waitForMoreSpeech();
+        }
+      }, 120);
+    } else {
+      voiceFinalizeCapture = null;
       updateVoiceAssistant(
         "A escuta terminou sem um comando completo. Tente novamente.",
       );
+    }
   };
   try {
     recognition.start();
   } catch (error) {
     voiceRecognition = null;
+    voiceFinalizeCapture = null;
     setVoiceListening(false);
     updateVoiceAssistant(error.message || voiceErrorMessage());
   }
@@ -1345,9 +1450,60 @@ function voiceCommandNotUnderstood(message = "") {
   );
 }
 
-function openVoiceRecordChoice(items, received = false) {
+function voiceWantsImmediateSave(command) {
+  return /\b(salvar|salve|salva)\b/.test(command);
+}
+
+function voiceTransactionPayload(item, changes = {}) {
+  return {
+    type: item.type,
+    description: item.description,
+    category: item.category || "Outros",
+    cardId: item.cardId || "",
+    cardSnapshot: item.cardSnapshot || null,
+    amount: Number(item.amount),
+    dueDate: item.dueDate || "",
+    plannedDate: item.plannedDate || item.dueDate || "",
+    status: item.status || "pending",
+    paidDate: item.paidDate || "",
+    notes: item.notes || "",
+    attachment: item.attachment || null,
+    ...changes,
+  };
+}
+
+async function saveVoiceTransaction(data, id = "", successMessage = "Lançamento salvo.") {
+  updateVoiceAssistant("Salvando o lançamento no Firebase...", data.description);
+  try {
+    await FirebaseService.saveTransaction(
+      state.selected.id,
+      data,
+      state.user.uid,
+      id || undefined,
+    );
+    closeVoiceAssistant();
+    state.view = "dashboard";
+    renderApp();
+    toast(successMessage);
+    return true;
+  } catch (error) {
+    setVoiceListening(false);
+    updateVoiceAssistant(
+      "Não consegui salvar o lançamento. Confira sua conexão e tente novamente.",
+      data.description,
+    );
+    firebaseError(error);
+    return false;
+  }
+}
+
+function openVoiceRecordChoice(
+  items,
+  received = false,
+  saveImmediately = false,
+) {
   showModal(
-    `<article class="modal modal-large voice-choice-modal"><button class="modal-close" type="button">×</button><span class="eyebrow">CONFIRME O LANÇAMENTO</span><h2>Qual registro deseja ${received ? "marcar como recebido" : "marcar como pago"}?</h2><p>Nenhuma alteração será salva antes da sua confirmação no formulário.</p><div class="summary-detail-list">${items
+    `<article class="modal modal-large voice-choice-modal"><button class="modal-close" type="button">×</button><span class="eyebrow">CONFIRME O LANÇAMENTO</span><h2>Qual registro deseja ${received ? "marcar como recebido" : "marcar como pago"}?</h2><p>${saveImmediately ? `Toque no registro correto para marcá-lo como ${received ? "recebido" : "pago"} e salvar agora.` : "Nenhuma alteração será salva antes da sua confirmação no formulário."}</p><div class="summary-detail-list">${items
       .map(
         (item) =>
           `<button class="summary-detail-row" type="button" data-voice-record="${item.id}">${categoryIconBadge(item)}<span class="summary-detail-copy"><b>${esc(item.description)}</b><small>${formatDate(item.dueDate)} · ${esc(categoryMeta(item))}</small></span><strong>${money.format(item.amount)}</strong></button>`,
@@ -1356,11 +1512,26 @@ function openVoiceRecordChoice(items, received = false) {
   );
   document.querySelectorAll("[data-voice-record]").forEach(
     (button) =>
-      (button.onclick = () => {
+      (button.onclick = async () => {
         const item = state.transactions.find(
           (transaction) => transaction.id === button.dataset.voiceRecord,
         );
         if (!item) return;
+        if (saveImmediately) {
+          busy(button, true);
+          const saved = await saveVoiceTransaction(
+            voiceTransactionPayload(item, {
+              status: "paid",
+              paidDate: todayKey(),
+            }),
+            item.id,
+            received
+              ? "Entrada marcada como recebida e salva."
+              : "Despesa marcada como paga e salva.",
+          );
+          if (!saved) busy(button, false);
+          return;
+        }
         openRecordModal({ ...item, status: "paid", paidDate: todayKey() });
         toast("Revise os dados e confirme em Salvar lançamento.");
       }),
@@ -1369,12 +1540,14 @@ function openVoiceRecordChoice(items, received = false) {
 
 function voiceMarkAsCompleted(command) {
   const received = /\b(recebido|recebida|recebi)\b/.test(command);
+  const saveImmediately = voiceWantsImmediateSave(command);
   const explicit = command.match(
     /(?:marcar|marque|definir)\s+(?:o\s+|a\s+)?(.+?)\s+como\s+(?:pago|paga|recebido|recebida)\b/,
   );
   const natural = command.match(/\b(?:paguei|recebi)\s+(?:o\s+|a\s+)?(.+)/);
   const query = (explicit?.[1] || natural?.[1] || "")
     .replace(/\b(?:hoje|agora)\b/g, "")
+    .replace(/\b(?:e\s+)?(?:salvar|salve|salva)\b/g, "")
     .trim();
   if (!query) return false;
   if (!canEdit()) {
@@ -1417,10 +1590,26 @@ function voiceMarkAsCompleted(command) {
     );
     return true;
   }
+  if (candidates.length === 1 && saveImmediately) {
+    const item = candidates[0];
+    void saveVoiceTransaction(
+      voiceTransactionPayload(item, {
+        status: "paid",
+        paidDate: todayKey(),
+      }),
+      item.id,
+      received
+        ? "Entrada marcada como recebida e salva."
+        : "Despesa marcada como paga e salva.",
+    );
+    return true;
+  }
   completeVoiceAction(
     candidates.length === 1
       ? "Lançamento encontrado. Confirme os dados antes de salvar."
-      : `${candidates.length} lançamentos encontrados. Escolha o correto.`,
+      : saveImmediately
+        ? `${candidates.length} lançamentos encontrados. Escolha qual deseja salvar.`
+        : `${candidates.length} lançamentos encontrados. Escolha o correto.`,
     () => {
       if (candidates.length === 1)
         openRecordModal({
@@ -1428,7 +1617,7 @@ function voiceMarkAsCompleted(command) {
           status: "paid",
           paidDate: todayKey(),
         });
-      else openVoiceRecordChoice(candidates, received);
+      else openVoiceRecordChoice(candidates, received, saveImmediately);
     },
   );
   return true;
@@ -1625,15 +1814,24 @@ function executeVoiceCommand(transcript) {
     return;
   }
 
-  const summaryType = /\b(detalhar|mostrar|mostre|abrir|abra|ver)\b.*\bentradas\b/.test(
-    command,
-  )
-    ? "income"
-    : /\b(detalhar|mostrar|mostre|abrir|abra|ver)\b.*\bdespesas\b/.test(command)
-      ? "expense"
-      : /\b(detalhar|mostrar|mostre|abrir|abra|ver)\b.*\bpagos?\b/.test(command)
-        ? "paid"
-        : "";
+  const summaryType =
+    /\b(quanto falta pagar|a pagar|despesas? pendentes?|pendencias?)\b/.test(
+      command,
+    )
+      ? "pending"
+      : /\b(detalhar|mostrar|mostre|abrir|abra|ver)\b.*\bentradas\b/.test(
+            command,
+          )
+        ? "income"
+        : /\b(detalhar|mostrar|mostre|abrir|abra|ver)\b.*\bdespesas\b/.test(
+              command,
+            )
+          ? "expense"
+          : /\b(detalhar|mostrar|mostre|abrir|abra|ver)\b.*\bpagos?\b/.test(
+                command,
+              )
+            ? "paid"
+            : "";
   if (summaryType) {
     completeVoiceAction("Abrindo o detalhamento solicitado.", () =>
       openSummaryModal(summaryType),
@@ -1667,6 +1865,7 @@ function executeVoiceCommand(transcript) {
         : null;
     const amount = voiceAmount(command);
     const dueDate = voiceDueDate(command);
+    const saveImmediately = voiceWantsImmediateSave(command);
     const draft = {
       type,
       description:
@@ -1678,6 +1877,31 @@ function executeVoiceCommand(transcript) {
       plannedDate: dueDate,
       status: "pending",
     };
+    if (saveImmediately) {
+      const missing = [];
+      if (!amount) missing.push("valor");
+      if (!category) missing.push("categoria");
+      if (!dueDate) missing.push("data");
+      if (category === "Cartão" && !selectedCard) missing.push("cartão");
+      if (!missing.length) {
+        void saveVoiceTransaction(
+          voiceTransactionPayload({
+            ...draft,
+            cardSnapshot: cardSnapshot(selectedCard),
+          }),
+          "",
+          `${type === "income" ? "Entrada" : "Despesa"} adicionada e salva.`,
+        );
+        return;
+      }
+      closeVoiceAssistant();
+      openRecordModal(draft);
+      toast(
+        `Não salvei ainda: informe ${missing.join(", ")} e confirme o lançamento.`,
+        "danger",
+      );
+      return;
+    }
     completeVoiceAction(
       "Formulário preparado. Revise os dados antes de salvar.",
       () => openRecordModal(draft),
@@ -1749,6 +1973,13 @@ function openSummaryModal(type) {
       description:
         "Despesas com vencimento no mês selecionado que estão marcadas como pagas, mesmo quando o pagamento ocorreu em outra data.",
       filter: (item) => item.type === "expense" && item.status === "paid",
+    },
+    pending: {
+      eyebrow: "AINDA A PAGAR",
+      title: "Despesas aguardando pagamento",
+      description:
+        "Despesas do mês selecionado que ainda não foram marcadas como pagas.",
+      filter: (item) => item.type === "expense" && item.status !== "paid",
     },
   };
   const definition = definitions[type];

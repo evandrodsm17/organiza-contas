@@ -11,7 +11,7 @@ A interface usa HTML, CSS e JavaScript puro. Authentication e Firestore são ace
 - papéis de proprietário, editor e somente leitura;
 - entradas e débitos categorizados;
 - cartões compartilhados por gerenciamento, com identificação das faturas;
-- comandos de voz para navegação, filtros e preparação de lançamentos;
+- comandos de voz para navegação, filtros, preparação e salvamento explícito de lançamentos;
 - vencimento, data planejada e data real de pagamento/recebimento independentes;
 - status pendente/pago;
 - estrutura preparada para comprovantes quando o Storage for ativado;
@@ -96,11 +96,11 @@ Inclua o domínio local ou de produção em **Authentication > Settings > Author
 
 O botão de microfone usa a API de reconhecimento do próprio navegador em `pt-BR`; não exige configuração adicional no Firebase. O usuário precisa permitir acesso ao microfone. Exemplos:
 
-- `Nova despesa de 120 reais de internet dia 10`;
-- `Marcar internet como pago`;
+- `Nova despesa de 120 reais de internet dia 10 e salvar`;
+- `Marcar internet como pago e salvar`;
 - `Filtrar por renegociação`;
 - `Buscar aluguel`;
 - `Próximo mês`;
 - `Abrir agenda`.
 
-Comandos que alteram informações financeiras apenas preparam o formulário. O usuário ainda precisa revisar os dados e confirmar em **Salvar lançamento**. O OrganizaContas não grava áudio nem transcrições, embora alguns navegadores possam enviar o áudio ao serviço de reconhecimento do próprio fornecedor.
+Sem a palavra **salvar**, comandos que alteram informações financeiras apenas preparam o formulário para revisão. Quando o usuário disser **salvar**, o lançamento será gravado imediatamente se valor, categoria, data e, quando necessário, cartão estiverem identificados. Se faltar algum dado obrigatório, o formulário será aberto preenchido e a aplicação indicará o que precisa ser informado. O OrganizaContas não grava áudio nem transcrições, embora alguns navegadores possam enviar o áudio ao serviço de reconhecimento do próprio fornecedor.
