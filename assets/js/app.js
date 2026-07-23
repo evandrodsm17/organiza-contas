@@ -1105,6 +1105,39 @@ function voiceErrorMessage(error) {
   }[error] || "Não foi possível usar o reconhecimento de voz neste momento.";
 }
 
+function mergeVoiceTranscript(base = "", addition = "") {
+  const left = String(base).replace(/\s+/g, " ").trim();
+  const right = String(addition).replace(/\s+/g, " ").trim();
+  if (!left) return right;
+  if (!right) return left;
+
+  const transcriptKey = (value) =>
+    normalizeSearch(value)
+      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  const leftKey = transcriptKey(left);
+  const rightKey = transcriptKey(right);
+  if (!leftKey) return right;
+  if (!rightKey) return left;
+  if (leftKey === rightKey) return right;
+  if (rightKey.startsWith(`${leftKey} `)) return right;
+  if (leftKey.startsWith(`${rightKey} `)) return left;
+
+  const leftWords = left.split(" ");
+  const rightWords = right.split(" ");
+  const leftKeys = leftWords.map(transcriptKey);
+  const rightKeys = rightWords.map(transcriptKey);
+  const maximumOverlap = Math.min(leftKeys.length, rightKeys.length);
+  for (let size = maximumOverlap; size > 0; size--) {
+    const leftEnding = leftKeys.slice(-size).join(" ");
+    const rightBeginning = rightKeys.slice(0, size).join(" ");
+    if (leftEnding === rightBeginning)
+      return `${left} ${rightWords.slice(size).join(" ")}`.trim();
+  }
+  return `${left} ${right}`;
+}
+
 function startVoiceListening() {
   const Recognition = speechRecognitionApi();
   const panel = document.querySelector("#voiceAssistant");
@@ -1135,11 +1168,10 @@ function startVoiceListening() {
   let silenceTimer = 0;
   let finished = false;
   const combinedTranscript = () =>
-    [capturedTranscript, currentFinalTranscript, currentInterimTranscript]
-      .filter(Boolean)
-      .join(" ")
-      .replace(/\s+/g, " ")
-      .trim();
+    mergeVoiceTranscript(
+      mergeVoiceTranscript(capturedTranscript, currentFinalTranscript),
+      currentInterimTranscript,
+    );
   const clearSilenceTimer = () => {
     if (silenceTimer) clearTimeout(silenceTimer);
     silenceTimer = 0;
@@ -1187,11 +1219,16 @@ function startVoiceListening() {
     for (let index = 0; index < event.results.length; index++) {
       const result = event.results[index];
       if (result.isFinal)
-        currentFinalTranscript += `${result[0].transcript} `;
-      else currentInterimTranscript += `${result[0].transcript} `;
+        currentFinalTranscript = mergeVoiceTranscript(
+          currentFinalTranscript,
+          result[0].transcript,
+        );
+      else
+        currentInterimTranscript = mergeVoiceTranscript(
+          currentInterimTranscript,
+          result[0].transcript,
+        );
     }
-    currentFinalTranscript = currentFinalTranscript.trim();
-    currentInterimTranscript = currentInterimTranscript.trim();
     updateVoiceAssistant("Ouvindo... pode continuar.", combinedTranscript());
     waitForMoreSpeech();
   };
@@ -1212,17 +1249,15 @@ function startVoiceListening() {
       if (voiceRecognition === recognition) voiceRecognition = null;
       return;
     }
-    const completedSegment = [
+    const completedSegment = mergeVoiceTranscript(
       currentFinalTranscript,
       currentInterimTranscript,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
+    );
     if (completedSegment) {
-      capturedTranscript = [capturedTranscript, completedSegment]
-        .filter(Boolean)
-        .join(" ");
+      capturedTranscript = mergeVoiceTranscript(
+        capturedTranscript,
+        completedSegment,
+      );
       currentFinalTranscript = "";
       currentInterimTranscript = "";
       waitForMoreSpeech();
