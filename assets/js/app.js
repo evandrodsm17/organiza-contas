@@ -11,6 +11,16 @@ const dateLabel = new Intl.DateTimeFormat("pt-BR", {
   month: "short",
   timeZone: "UTC",
 });
+function defaultCalendarFilters() {
+  return {
+    query: "",
+    expenseCategory: "",
+    cardId: "",
+    sort: "date",
+    dueFrom: "",
+    dueTo: "",
+  };
+}
 const state = {
   user: null,
   profile: null,
@@ -23,7 +33,7 @@ const state = {
   calendarLayout:
     localStorage.getItem("organiza-calendar-layout") ||
     (matchMedia("(max-width: 760px)").matches ? "agenda" : "grid"),
-  calendarFilters: { query: "", expenseCategory: "", cardId: "", sort: "date" },
+  calendarFilters: defaultCalendarFilters(),
   dashboardGroupOpen: { upcoming: true, previous: false },
   users: [],
 };
@@ -656,13 +666,39 @@ function calendarFiltersActive() {
     filters.query.trim() ||
       filters.expenseCategory ||
       filters.cardId ||
-      filters.sort !== "date",
+      filters.sort !== "date" ||
+      filters.dueFrom ||
+      filters.dueTo,
   );
+}
+function calendarDueRangeActive() {
+  return Boolean(state.calendarFilters.dueFrom || state.calendarFilters.dueTo);
+}
+function calendarDateInRange(item) {
+  const dueDate = item.dueDate || "";
+  const { dueFrom, dueTo } = state.calendarFilters;
+  if (!dueDate) return false;
+  return (!dueFrom || dueDate >= dueFrom) && (!dueTo || dueDate <= dueTo);
+}
+function calendarScopedTransactions() {
+  return calendarDueRangeActive()
+    ? state.transactions.filter(
+        (item) => item.type === "expense" && calendarDateInRange(item),
+      )
+    : monthTransactions();
+}
+function calendarRangeLabel() {
+  const { dueFrom, dueTo } = state.calendarFilters;
+  if (dueFrom && dueTo) {
+    return `${formatFullDate(dueFrom)} a ${formatFullDate(dueTo)}`;
+  }
+  if (dueFrom) return `A partir de ${formatFullDate(dueFrom)}`;
+  return `Até ${formatFullDate(dueTo)}`;
 }
 function filteredCalendarTransactions() {
   const filters = state.calendarFilters;
   const query = normalizeSearch(filters.query);
-  let items = monthTransactions().slice();
+  let items = calendarScopedTransactions().slice();
   if (query) {
     items = items.filter((item) =>
       normalizeSearch(item.description).includes(query),
@@ -696,7 +732,7 @@ function filteredCalendarTransactions() {
 }
 function expenseFilterCategories() {
   const known = categories.expense.slice();
-  monthTransactions()
+  calendarScopedTransactions()
     .filter((item) => item.type === "expense" && item.category)
     .forEach((item) => {
       if (!known.includes(item.category)) known.push(item.category);
@@ -705,13 +741,13 @@ function expenseFilterCategories() {
 }
 function renderCalendarFilters(filteredItems) {
   const filters = state.calendarFilters;
-  const total = monthTransactions().length;
+  const total = calendarScopedTransactions().length;
   const resultLabel = filteredItems.length === 1 ? "resultado" : "resultados";
   const cardFilter =
     filters.expenseCategory === "Cartão"
       ? `<label><span>Cartão</span><select id="cardFilter"><option value="">Todos os cartões</option>${state.cards.map((card) => `<option value="${attr(card.id)}" ${filters.cardId === card.id ? "selected" : ""}>${esc(card.name)}${card.active === false ? " (arquivado)" : ""}</option>`).join("")}</select></label>`
       : "";
-  return `<section class="calendar-filters" aria-label="Filtros dos lançamentos"><div class="calendar-filter-fields ${cardFilter ? "has-card-filter" : ""}"><label class="calendar-search-field"><span>Buscar por nome</span><div>${icon("search")}<input id="transactionSearch" type="search" value="${attr(filters.query)}" placeholder="Ex.: aluguel, energia..." autocomplete="off"></div></label><label><span>Categoria de despesa</span><select id="expenseCategoryFilter"><option value="">Todas as categorias</option>${expenseFilterCategories().map((category) => `<option value="${attr(category)}" ${filters.expenseCategory === category ? "selected" : ""}>${esc(category === "Cartão" ? "Fatura de cartão" : category)}</option>`).join("")}</select></label>${cardFilter}<label><span>Ordenar</span><select id="transactionSort"><option value="date" ${filters.sort === "date" ? "selected" : ""}>Data: mais antiga</option><option value="amount-asc" ${filters.sort === "amount-asc" ? "selected" : ""}>Valor: menor primeiro</option><option value="amount-desc" ${filters.sort === "amount-desc" ? "selected" : ""}>Valor: maior primeiro</option></select></label></div><div class="calendar-filter-meta"><span aria-live="polite"><b>${filteredItems.length}</b> ${resultLabel} de ${total}</span>${calendarFiltersActive() ? '<button id="clearCalendarFilters" class="calendar-filter-clear" type="button">Limpar filtros</button>' : ""}</div></section>`;
+  return `<section class="calendar-filters" aria-label="Filtros dos lançamentos"><div class="calendar-date-range"><div class="calendar-date-range-copy"><span class="calendar-date-range-icon">${icon("calendar")}</span><span><b>Vencimento por período</b><small>Consulte despesas entre duas datas, mesmo em meses diferentes.</small></span></div><div class="calendar-date-inputs"><label><span>Data inicial</span><input id="calendarDueFrom" type="date" value="${attr(filters.dueFrom)}" ${filters.dueTo ? `max="${attr(filters.dueTo)}"` : ""}></label><span class="calendar-date-separator" aria-hidden="true">até</span><label><span>Data final</span><input id="calendarDueTo" type="date" value="${attr(filters.dueTo)}" ${filters.dueFrom ? `min="${attr(filters.dueFrom)}"` : ""}></label></div></div><div class="calendar-filter-fields ${cardFilter ? "has-card-filter" : ""}"><label class="calendar-search-field"><span>Buscar por nome</span><div>${icon("search")}<input id="transactionSearch" type="search" value="${attr(filters.query)}" placeholder="Ex.: aluguel, energia..." autocomplete="off"></div></label><label><span>Categoria de despesa</span><select id="expenseCategoryFilter"><option value="">Todas as categorias</option>${expenseFilterCategories().map((category) => `<option value="${attr(category)}" ${filters.expenseCategory === category ? "selected" : ""}>${esc(category === "Cartão" ? "Fatura de cartão" : category)}</option>`).join("")}</select></label>${cardFilter}<label><span>Ordenar</span><select id="transactionSort"><option value="date" ${filters.sort === "date" ? "selected" : ""}>Data: mais antiga</option><option value="amount-asc" ${filters.sort === "amount-asc" ? "selected" : ""}>Valor: menor primeiro</option><option value="amount-desc" ${filters.sort === "amount-desc" ? "selected" : ""}>Valor: maior primeiro</option></select></label></div><div class="calendar-filter-meta"><span aria-live="polite"><b>${filteredItems.length}</b> ${resultLabel} de ${total} ${calendarDueRangeActive() ? "no período" : "no mês"}</span>${calendarFiltersActive() ? '<button id="clearCalendarFilters" class="calendar-filter-clear" type="button">Limpar filtros</button>' : ""}</div></section>`;
 }
 function monthControl() {
   return `<div class="month-control"><button class="month-arrow" data-month="-1" aria-label="Mês anterior" title="Mês anterior">${icon("chevron-left")}</button><label class="month-field"><span>Período</span><input id="monthInput" type="month" value="${state.month}" aria-label="Escolher mês e ano"></label><button class="month-arrow" data-month="1" aria-label="Próximo mês" title="Próximo mês">${icon("chevron-right")}</button><button class="month-today" id="monthToday" type="button">Hoje</button></div>`;
@@ -875,7 +911,9 @@ function recordRow(item) {
 
 function renderCalendar(monthName) {
   if (!state.selected) return emptyManagement();
-  if (state.calendarLayout === "agenda") return renderCalendarAgenda(monthName);
+  if (state.calendarLayout === "agenda" || calendarDueRangeActive()) {
+    return renderCalendarAgenda(monthName);
+  }
   const filteredItems = filteredCalendarTransactions();
   const [year, month] = state.month.split("-").map(Number);
   const first = new Date(Date.UTC(year, month - 1, 1));
@@ -904,11 +942,16 @@ function renderCalendar(monthName) {
 }
 
 function calendarHeader() {
-  return `<div class="content-head calendar-content-head">${monthControl()}<div class="calendar-layout-switch" role="group" aria-label="Formato de visualização"><button type="button" data-calendar-layout="grid" class="${state.calendarLayout === "grid" ? "active" : ""}" aria-pressed="${state.calendarLayout === "grid"}">${icon("calendar")}<span>Calendário</span></button><button type="button" data-calendar-layout="agenda" class="${state.calendarLayout === "agenda" ? "active" : ""}" aria-pressed="${state.calendarLayout === "agenda"}">${icon("list")}<span>Agenda</span></button></div></div>`;
+  const customPeriod = calendarDueRangeActive();
+  const periodControl = customPeriod
+    ? `<div class="calendar-custom-period"><span class="calendar-custom-period-icon">${icon("calendar")}</span><span><small>PERÍODO PERSONALIZADO</small><b>${esc(calendarRangeLabel())}</b></span><button id="clearDueRange" type="button">Voltar ao mês</button></div>`
+    : monthControl();
+  return `<div class="content-head calendar-content-head">${periodControl}<div class="calendar-layout-switch" role="group" aria-label="Formato de visualização"><button type="button" data-calendar-layout="grid" class="${!customPeriod && state.calendarLayout === "grid" ? "active" : ""}" aria-pressed="${!customPeriod && state.calendarLayout === "grid"}" ${customPeriod ? 'disabled title="O calendário mensal fica disponível ao limpar o período personalizado"' : ""}>${icon("calendar")}<span>Calendário</span></button><button type="button" data-calendar-layout="agenda" class="${customPeriod || state.calendarLayout === "agenda" ? "active" : ""}" aria-pressed="${customPeriod || state.calendarLayout === "agenda"}">${icon("list")}<span>Agenda</span></button></div></div>`;
 }
 
 function renderCalendarAgenda() {
   const items = filteredCalendarTransactions();
+  const periodSummary = renderCalendarPeriodSummary(items);
   if (state.calendarFilters.sort !== "date") {
     const sortingLabel =
       state.calendarFilters.sort === "amount-asc"
@@ -921,7 +964,7 @@ function renderCalendarAgenda() {
             ? "Nenhum lançamento corresponde aos filtros escolhidos."
             : "Nenhum lançamento cadastrado neste mês.",
         );
-    return `${calendarHeader()}${renderCalendarFilters(items)}<article class="panel agenda-panel agenda-sorted-panel">${content}</article>`;
+    return `${calendarHeader()}${renderCalendarFilters(items)}${periodSummary}<article class="panel agenda-panel agenda-sorted-panel">${content}</article>`;
   }
   const groups = items.reduce((acc, item) => {
     const key = item.dueDate || `${state.month}-01`;
@@ -934,7 +977,26 @@ function renderCalendarAgenda() {
   const emptyMessage = calendarFiltersActive()
     ? "Nenhum lançamento corresponde aos filtros escolhidos."
     : "Nenhum lançamento cadastrado neste mês.";
-  return `${calendarHeader()}${renderCalendarFilters(items)}<article class="panel agenda-panel">${content || empty(emptyMessage)}</article>`;
+  return `${calendarHeader()}${renderCalendarFilters(items)}${periodSummary}<article class="panel agenda-panel">${content || empty(emptyMessage)}</article>`;
+}
+
+function renderCalendarPeriodSummary(items) {
+  if (!calendarDueRangeActive()) return "";
+  const expenses = items.filter((item) => item.type === "expense");
+  const pendingItems = expenses.filter((item) => item.status !== "paid");
+  const paidItems = expenses.filter((item) => item.status === "paid");
+  const expenseTotal = sum(expenses);
+  const pendingTotal = sum(pendingItems);
+  const paidTotal = sum(paidItems);
+  const paidPercent = expenseTotal
+    ? Math.min(100, Math.round((paidTotal / expenseTotal) * 100))
+    : 0;
+  const overdueCount = pendingItems.filter(
+    (item) => item.dueDate && item.dueDate < todayKey(),
+  ).length;
+  const pendingCountLabel =
+    pendingItems.length === 1 ? "1 despesa pendente" : `${pendingItems.length} despesas pendentes`;
+  return `<section class="period-payment-summary" aria-labelledby="periodPaymentTitle"><div class="period-payment-main"><span class="period-payment-main-icon">${icon("receipt")}</span><div><span id="periodPaymentTitle">A pagar no período</span><b>${money.format(pendingTotal)}</b><small>${pendingCountLabel}${overdueCount ? ` · ${overdueCount} ${overdueCount === 1 ? "vencida" : "vencidas"}` : ""}</small></div></div><div class="period-payment-metrics"><div><span>Total de despesas</span><b>${money.format(expenseTotal)}</b><small>${expenses.length} ${expenses.length === 1 ? "lançamento" : "lançamentos"}</small></div><div><span>Já pago</span><b>${money.format(paidTotal)}</b><small>${paidPercent}% do total quitado</small></div></div><div class="period-payment-progress" aria-label="${paidPercent}% das despesas do período pagas"><span><i style="width:${paidPercent}%"></i></span><small>Valores considerando os filtros atuais</small></div></section>`;
 }
 
 function agendaDay(date, items) {
@@ -946,6 +1008,7 @@ function agendaDay(date, items) {
   const monthDay = new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
     month: "long",
+    ...(calendarDueRangeActive() ? { year: "numeric" } : {}),
     timeZone: "UTC",
   }).format(parsed);
   const isToday = date === todayKey();
@@ -954,7 +1017,7 @@ function agendaDay(date, items) {
 
 function agendaItem(item, showDate = false) {
   const status = financialStatus(item);
-  return `<button type="button" class="agenda-item" data-edit="${item.id}">${categoryIconBadge(item)}<span class="agenda-item-copy"><b>${esc(item.description)}</b><small>${esc(categoryMeta(item))}${showDate ? ` · ${formatDate(item.dueDate)}` : ""}${Number(item.recurrenceTotal) > 1 ? ` · ${item.recurrenceType === "installment" ? "Parcela" : "Recorrente"} ${item.recurrenceIndex}/${item.recurrenceTotal}` : ""}</small></span><span class="agenda-item-value"><b class="${item.type === "income" ? "positive" : ""}">${item.type === "income" ? "+ " : ""}${money.format(item.amount)}</b><span class="pill ${status.className}">${status.label}</span></span></button>`;
+  return `<button type="button" class="agenda-item" data-edit="${item.id}">${categoryIconBadge(item)}<span class="agenda-item-copy"><b>${esc(item.description)}</b><small>${esc(categoryMeta(item))}${showDate ? ` · ${calendarDueRangeActive() ? formatFullDate(item.dueDate) : formatDate(item.dueDate)}` : ""}${Number(item.recurrenceTotal) > 1 ? ` · ${item.recurrenceType === "installment" ? "Parcela" : "Recorrente"} ${item.recurrenceIndex}/${item.recurrenceTotal}` : ""}</small></span><span class="agenda-item-value"><b class="${item.type === "income" ? "positive" : ""}">${item.type === "income" ? "+ " : ""}${money.format(item.amount)}</b><span class="pill ${status.className}">${status.label}</span></span></button>`;
 }
 
 function renderUsers() {
@@ -1076,7 +1139,7 @@ function bindShell() {
   document.querySelector("#managementSelect").onchange = (e) => {
     state.selected =
       state.managements.find((i) => i.id === e.target.value) || null;
-    state.calendarFilters = { query: "", expenseCategory: "", cardId: "", sort: "date" };
+    state.calendarFilters = defaultCalendarFilters();
     observeSelectedManagement();
     renderApp();
   };
@@ -1205,6 +1268,30 @@ function bindShell() {
         renderApp();
       }
     });
+  [
+    ["#calendarDueFrom", "dueFrom"],
+    ["#calendarDueTo", "dueTo"],
+  ].forEach(([selector, field]) => {
+    document.querySelector(selector)?.addEventListener("change", (event) => {
+      state.calendarFilters[field] = event.target.value;
+      const { dueFrom, dueTo } = state.calendarFilters;
+      if (dueFrom && dueTo && dueFrom > dueTo) {
+        state.calendarFilters.dueFrom = dueTo;
+        state.calendarFilters.dueTo = dueFrom;
+        toast("Ajustei as datas para manter o período em ordem.", "info");
+      }
+      if (calendarDueRangeActive()) {
+        state.calendarLayout = "agenda";
+        localStorage.setItem("organiza-calendar-layout", "agenda");
+      }
+      renderApp();
+    });
+  });
+  document.querySelector("#clearDueRange")?.addEventListener("click", () => {
+    state.calendarFilters.dueFrom = "";
+    state.calendarFilters.dueTo = "";
+    renderApp();
+  });
   const transactionSearch = document.querySelector("#transactionSearch");
   if (transactionSearch) {
     transactionSearch.oninput = (event) => {
@@ -1248,12 +1335,7 @@ function bindShell() {
     .querySelector("#clearCalendarFilters")
     ?.addEventListener("click", () => {
       window.clearTimeout(calendarSearchTimer);
-      state.calendarFilters = {
-        query: "",
-        expenseCategory: "",
-        cardId: "",
-        sort: "date",
-      };
+      state.calendarFilters = defaultCalendarFilters();
       renderApp();
     });
   document.querySelector("#monthToday")?.addEventListener("click", () => {
@@ -2230,12 +2312,7 @@ function executeVoiceCommand(transcript) {
     ])
   ) {
     completeVoiceAction("Filtros removidos.", () => {
-      state.calendarFilters = {
-        query: "",
-        expenseCategory: "",
-        cardId: "",
-        sort: "date",
-      };
+      state.calendarFilters = defaultCalendarFilters();
       state.view = "calendar";
       renderApp();
     });
@@ -2250,10 +2327,8 @@ function executeVoiceCommand(transcript) {
       voiceRemoveTerms(searchMatch[1], voiceLexicon.filler) || searchMatch[1];
     completeVoiceAction(`Buscando por “${searchQuery}”.`, () => {
       state.calendarFilters = {
+        ...defaultCalendarFilters(),
         query: searchQuery,
-        expenseCategory: "",
-        cardId: "",
-        sort: "date",
       };
       state.calendarLayout = "agenda";
       state.view = "calendar";
@@ -2278,10 +2353,9 @@ function executeVoiceCommand(transcript) {
         : `Mostrando despesas de ${category}.`,
       () => {
         state.calendarFilters = {
-          query: "",
+          ...defaultCalendarFilters(),
           expenseCategory: category,
           cardId: selectedCard?.id || "",
-          sort: "date",
         };
         state.calendarLayout = "agenda";
         state.view = "calendar";
@@ -3080,6 +3154,15 @@ function firebaseError(error) {
 }
 function formatDate(value) {
   return value ? dateLabel.format(new Date(`${value}T12:00:00Z`)) : "Sem data";
+}
+function formatFullDate(value) {
+  if (!value) return "Sem data";
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${value}T12:00:00Z`));
 }
 function initials(name = "") {
   return (
