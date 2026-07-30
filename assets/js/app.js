@@ -77,6 +77,23 @@ const categories = {
     "Outros",
   ],
 };
+const expensePriorities = {
+  essential: {
+    label: "Essencial",
+    description: "Moradia, alimentação, saúde e serviços indispensáveis.",
+    rank: 0,
+  },
+  important: {
+    label: "Importante",
+    description: "Compromissos que devem ser preservados no planejamento.",
+    rank: 1,
+  },
+  flexible: {
+    label: "Flexível",
+    description: "Pode ser adiada ou revista se o caixa apertar.",
+    rank: 2,
+  },
+};
 
 const voiceLexicon = {
   create: [
@@ -555,19 +572,26 @@ function renderApp() {
     year: "numeric",
     timeZone: "UTC",
   }).format(new Date(`${state.month}-01T12:00:00Z`));
-  app.innerHTML = `<div class="app-shell"><aside><a class="brand brand-light" href="#"><img class="brand-logo" src="assets/logo.png" alt=""><span>OrganizaContas</span></a><div class="profile"><span>${initials(state.profile.name)}</span><div><b>${esc(state.profile.name)}</b><small>${state.profile.role === "master" ? "Administrador master" : "Usuário"}</small></div></div><nav>${nav("dashboard", "home", "Visão geral")}${nav("calendar", "calendar", "Agenda")}<button class="mobile-new-record" id="mobileNewRecord" aria-label="Criar novo lançamento" title="Novo lançamento" ${!canEdit() ? "disabled" : ""}>${icon("plus")}</button>${nav("settings", "settings", "Configurações")}<button class="nav-item mobile-nav-logout mobile-nav-voice" id="mobileNavVoice" type="button" aria-label="Executar comando de voz" title="Comando de voz">${icon("mic")}<small>Voz</small></button></nav><button class="logout voice-sidebar-command" id="desktopVoiceCommand" type="button">${icon("mic")} Comando de voz</button></aside>
+  app.innerHTML = `<div class="app-shell"><aside><a class="brand brand-light" href="#"><img class="brand-logo" src="assets/logo.png" alt=""><span>OrganizaContas</span></a><div class="profile"><span>${initials(state.profile.name)}</span><div><b>${esc(state.profile.name)}</b><small>${state.profile.role === "master" ? "Administrador master" : "Usuário"}</small></div></div><nav>${nav("dashboard", "home", "Visão geral")}${nav("planning", "chart", "Planejamento", "planning-nav-item")}${nav("calendar", "calendar", "Agenda")}<button class="mobile-new-record" id="mobileNewRecord" aria-label="Criar novo lançamento" title="Novo lançamento" ${!canEdit() ? "disabled" : ""}>${icon("plus")}</button>${nav("settings", "settings", "Configurações")}<button class="nav-item mobile-nav-logout mobile-nav-voice" id="mobileNavVoice" type="button" aria-label="Executar comando de voz" title="Comando de voz">${icon("mic")}<small>Voz</small></button></nav><button class="logout voice-sidebar-command" id="desktopVoiceCommand" type="button">${icon("mic")} Comando de voz</button></aside>
   <main class="workspace"><header class="workspace-head"><div class="workspace-title"><span class="mobile-brand">OrganizaContas</span><h1>${viewTitle()}</h1><p>${state.selected ? esc(state.selected.name) : "Crie seu primeiro gerenciamento"}</p></div><div class="head-actions">${managementSelect()}<button class="btn btn-primary" id="newRecord" ${!canEdit() ? "disabled" : ""}>${icon("plus")}<span>Novo lançamento</span></button></div></header>
-  ${state.view === "users" ? renderUsers() : state.view === "settings" ? renderSettings(monthName) : state.view === "calendar" ? renderCalendar(monthName) : renderDashboard(monthName)}</main></div><div id="modalRoot"></div>`;
+  ${state.view === "users" ? renderUsers() : state.view === "settings" ? renderSettings(monthName) : state.view === "planning" ? renderCashPlanning() : state.view === "calendar" ? renderCalendar(monthName) : renderDashboard(monthName)}</main></div><div id="modalRoot"></div>`;
   bindShell();
 }
 
-function nav(id, iconName, label) {
-  const active = state.view === id || (id === "settings" && state.view === "users");
-  return `<button class="nav-item ${active ? "active" : ""}" data-view="${id}">${icon(iconName)}<small>${label}</small></button>`;
+function nav(id, iconName, label, extraClass = "") {
+  const active =
+    state.view === id ||
+    (id === "settings" && state.view === "users");
+  const mobilePlanningParent =
+    id === "dashboard" && state.view === "planning"
+      ? "mobile-planning-parent"
+      : "";
+  return `<button class="nav-item ${extraClass} ${mobilePlanningParent} ${active ? "active" : ""}" data-view="${id}">${icon(iconName)}<small>${label}</small></button>`;
 }
 function viewTitle() {
   return {
     dashboard: "Visão geral",
+    planning: "Planejamento de caixa",
     calendar: "Agenda financeira",
     settings: "Configurações",
     users: "Gestão de usuários",
@@ -617,6 +641,242 @@ function cardNameFor(item) {
 function categoryMeta(item) {
   const cardName = cardNameFor(item);
   return cardName ? `${item.category} · ${cardName}` : item.category || "Outros";
+}
+function defaultExpensePriority(category = "") {
+  if (
+    ["Água", "Energia", "Alimentação", "Moradia", "Saúde"].includes(category)
+  ) {
+    return "essential";
+  }
+  if (["Lazer", "Outros"].includes(category)) return "flexible";
+  return "important";
+}
+function expensePriority(item = {}) {
+  return expensePriorities[item.priority]
+    ? item.priority
+    : defaultExpensePriority(item.category);
+}
+function priorityLabel(item = {}) {
+  return expensePriorities[expensePriority(item)].label;
+}
+function addDaysToKey(value, days) {
+  const date = new Date(`${value}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + Number(days));
+  return date.toISOString().slice(0, 10);
+}
+function cashPlanningConfig() {
+  const stored = state.selected?.cashPlanning || {};
+  const configured = Object.prototype.hasOwnProperty.call(
+    stored,
+    "currentBalance",
+  );
+  const horizon = Number(stored.horizonDays);
+  const currentBalance = Number(stored.currentBalance);
+  const minimumReserve = Number(stored.minimumReserve);
+  const balanceDate = String(stored.balanceDate || "");
+  return {
+    configured,
+    currentBalance: Number.isFinite(currentBalance) ? currentBalance : 0,
+    minimumReserve:
+      Number.isFinite(minimumReserve) && minimumReserve > 0
+        ? minimumReserve
+        : 0,
+    horizonDays: [30, 60, 90].includes(horizon) ? horizon : 60,
+    balanceDate: /^\d{4}-\d{2}-\d{2}$/.test(balanceDate)
+      ? balanceDate
+      : todayKey(),
+  };
+}
+function buildCashFlowAnalysis() {
+  const config = cashPlanningConfig();
+  const startDate = todayKey();
+  const endDate = addDaysToKey(startDate, config.horizonDays);
+  let openingBalance = config.currentBalance;
+  const appliedTransactions = [];
+
+  if (config.balanceDate < startDate) {
+    state.transactions.forEach((item) => {
+      const actualDate = item.paidDate || "";
+      if (
+        item.status === "paid" &&
+        actualDate > config.balanceDate &&
+        actualDate <= startDate
+      ) {
+        const amount = Number(item.amount || 0);
+        openingBalance += item.type === "income" ? amount : -amount;
+        appliedTransactions.push(item);
+      }
+    });
+  }
+
+  const lateIncomes = [];
+  const events = [];
+  state.transactions.forEach((item) => {
+    const amount = Number(item.amount || 0);
+    if (!amount || item.status === "paid") return;
+    const dueDate = item.dueDate || "";
+    if (!dueDate) return;
+    if (item.type === "income") {
+      if (dueDate < startDate) {
+        lateIncomes.push(item);
+        return;
+      }
+      if (dueDate <= endDate) {
+        events.push({ type: "income", date: dueDate, amount, item });
+      }
+      return;
+    }
+    const projectionDate = dueDate < startDate ? startDate : dueDate;
+    if (projectionDate <= endDate) {
+      events.push({
+        type: "expense",
+        date: projectionDate,
+        originalDate: dueDate,
+        overdue: dueDate < startDate,
+        amount,
+        item,
+        priority: expensePriority(item),
+      });
+    }
+  });
+
+  events.sort((a, b) => {
+    const byDate = a.date.localeCompare(b.date);
+    if (byDate) return byDate;
+    if (a.type !== b.type) return a.type === "income" ? -1 : 1;
+    if (a.type === "expense") {
+      const byPriority =
+        expensePriorities[a.priority].rank -
+        expensePriorities[b.priority].rank;
+      if (byPriority) return byPriority;
+    }
+    return String(a.item.description || "").localeCompare(
+      String(b.item.description || ""),
+      "pt-BR",
+    );
+  });
+
+  let balance = openingBalance;
+  let minimumBalance = openingBalance;
+  let minimumBalanceDate = startDate;
+  const processedEvents = events.map((event) => {
+    const balanceBefore = balance;
+    let coverage = "";
+    if (event.type === "income") {
+      balance += event.amount;
+    } else {
+      const balanceAfter = balance - event.amount;
+      if (balanceAfter >= config.minimumReserve) coverage = "covered";
+      else if (balanceAfter >= 0) coverage = "reserve";
+      else if (balance > 0) coverage = "partial";
+      else coverage = "uncovered";
+      balance = balanceAfter;
+    }
+    if (balance < minimumBalance) {
+      minimumBalance = balance;
+      minimumBalanceDate = event.date;
+    }
+    return {
+      ...event,
+      coverage,
+      balanceBefore,
+      balanceAfter: balance,
+    };
+  });
+
+  const incomeGroups = processedEvents
+    .filter((event) => event.type === "income")
+    .reduce((groups, event) => {
+      const current = groups[groups.length - 1];
+      if (current?.date === event.date) {
+        current.events.push(event);
+        current.amount += event.amount;
+      } else {
+        groups.push({
+          date: event.date,
+          events: [event],
+          amount: event.amount,
+        });
+      }
+      return groups;
+    }, []);
+
+  const cycles = incomeGroups.map((group, index) => {
+    const nextIncomeDate = incomeGroups[index + 1]?.date || "";
+    const expenses = processedEvents.filter(
+      (event) =>
+        event.type === "expense" &&
+        event.date >= group.date &&
+        (!nextIncomeDate || event.date < nextIncomeDate),
+    );
+    const expenseTotal = sum(expenses);
+    const balanceBefore = group.events[0].balanceBefore;
+    const afterObligations = balanceBefore + group.amount - expenseTotal;
+    return {
+      ...group,
+      nextIncomeDate,
+      expenses,
+      expenseTotal,
+      afterObligations,
+      freeAfterReserve: afterObligations - config.minimumReserve,
+    };
+  });
+
+  const nextIncome = processedEvents.find(
+    (event) => event.type === "income",
+  );
+  const nextIncomeGroup = incomeGroups[0] || null;
+  const expensesBeforeNextIncome = processedEvents.filter(
+    (event) =>
+      event.type === "expense" &&
+      (!nextIncome || event.date < nextIncome.date),
+  );
+  const requiredBeforeNextIncome = sum(expensesBeforeNextIncome);
+  const availableBeforeNextIncome = openingBalance - config.minimumReserve;
+  const shortageBeforeNextIncome = Math.max(
+    0,
+    requiredBeforeNextIncome - availableBeforeNextIncome,
+  );
+  const expenseTotal = sum(
+    processedEvents.filter((event) => event.type === "expense"),
+  );
+  const incomeTotal = sum(
+    processedEvents.filter((event) => event.type === "income"),
+  );
+  const attentionEvents = processedEvents.filter(
+    (event) =>
+      event.type === "expense" &&
+      ["reserve", "partial", "uncovered"].includes(event.coverage),
+  );
+  const health =
+    minimumBalance < 0
+      ? "critical"
+      : minimumBalance < config.minimumReserve
+        ? "warning"
+        : "healthy";
+
+  return {
+    config,
+    startDate,
+    endDate,
+    openingBalance,
+    appliedTransactions,
+    processedEvents,
+    lateIncomes,
+    cycles,
+    nextIncome,
+    nextIncomeGroup,
+    expensesBeforeNextIncome,
+    requiredBeforeNextIncome,
+    shortageBeforeNextIncome,
+    expenseTotal,
+    incomeTotal,
+    projectedBalance: balance,
+    minimumBalance,
+    minimumBalanceDate,
+    attentionEvents,
+    health,
+  };
 }
 function validCardColor(value = "") {
   return /^#[0-9a-f]{6}$/i.test(value) ? value : "#3157d5";
@@ -753,6 +1013,116 @@ function monthControl() {
   return `<div class="month-control"><button class="month-arrow" data-month="-1" aria-label="Mês anterior" title="Mês anterior">${icon("chevron-left")}</button><label class="month-field"><span>Período</span><input id="monthInput" type="month" value="${state.month}" aria-label="Escolher mês e ano"></label><button class="month-arrow" data-month="1" aria-label="Próximo mês" title="Próximo mês">${icon("chevron-right")}</button><button class="month-today" id="monthToday" type="button">Hoje</button></div>`;
 }
 
+function cashPlanningHealthMeta(analysis) {
+  if (analysis.health === "critical") {
+    return {
+      label: "Caixa descoberto",
+      title: `O saldo fica ${money.format(Math.abs(analysis.minimumBalance))} negativo no ponto mais apertado`,
+      icon: "!",
+    };
+  }
+  if (analysis.health === "warning") {
+    return {
+      label: "Reserva em uso",
+      title: "As contas cabem, mas sua reserva mínima será utilizada",
+      icon: "↘",
+    };
+  }
+  return {
+    label: "Fluxo protegido",
+    title: "Seu caixa cobre as despesas previstas e preserva a reserva",
+    icon: "✓",
+  };
+}
+function cashPlanningPrimaryText(analysis) {
+  if (analysis.shortageBeforeNextIncome > 0) {
+    const incomeCopy = analysis.nextIncomeGroup
+      ? `antes da entrada de ${money.format(analysis.nextIncomeGroup.amount)}, prevista para ${formatFullDate(analysis.nextIncomeGroup.date)}`
+      : `até ${formatFullDate(analysis.endDate)}`;
+    return `Há ${money.format(analysis.requiredBeforeNextIncome)} em despesas ${incomeCopy}. Para pagá-las e manter sua reserva, ainda faltam ${money.format(analysis.shortageBeforeNextIncome)}. Priorize as essenciais e reveja as flexíveis listadas abaixo.`;
+  }
+  if (analysis.nextIncomeGroup) {
+    if (!analysis.requiredBeforeNextIncome) {
+      return `Nenhuma despesa vence antes da próxima entrada de ${money.format(analysis.nextIncomeGroup.amount)}, prevista para ${formatFullDate(analysis.nextIncomeGroup.date)}.`;
+    }
+    return `Mantenha ${money.format(analysis.requiredBeforeNextIncome)} separado para as contas que vencem antes da entrada de ${money.format(analysis.nextIncomeGroup.amount)} em ${formatFullDate(analysis.nextIncomeGroup.date)}.`;
+  }
+  if (analysis.requiredBeforeNextIncome) {
+    return `Até ${formatFullDate(analysis.endDate)}, reserve ${money.format(analysis.requiredBeforeNextIncome)} para as despesas cadastradas. Nenhuma nova entrada está prevista nesse intervalo.`;
+  }
+  return `Não há despesas pendentes até ${formatFullDate(analysis.endDate)}. Seu saldo disponível permanece livre, respeitando a reserva mínima definida.`;
+}
+function renderCashPlanningTeaser() {
+  if (!state.selected) return "";
+  const config = cashPlanningConfig();
+  if (!config.configured) {
+    return `<section class="cash-planning-teaser is-setup"><span class="cash-planning-teaser-icon">${icon("chart")}</span><div><small>PLANEJAMENTO DE CAIXA</small><b>Descubra se o dinheiro chega antes das contas</b><p>Informe seu saldo e uma reserva mínima para receber recomendações por vencimento.</p></div><button type="button" data-go="settings" data-focus="cashPlanningSettings">Configurar agora</button></section>`;
+  }
+  const analysis = buildCashFlowAnalysis();
+  const meta = cashPlanningHealthMeta(analysis);
+  return `<section class="cash-planning-teaser is-${analysis.health}"><span class="cash-planning-teaser-icon">${icon(analysis.health === "healthy" ? "shield" : "chart")}</span><div><small>${meta.label.toUpperCase()}</small><b>${meta.title}</b><p>${cashPlanningPrimaryText(analysis)}</p></div><button type="button" data-go="planning">Abrir análise</button></section>`;
+}
+function planningCoverageLabel(event) {
+  return {
+    covered: "Coberta",
+    reserve: "Usa a reserva",
+    partial: "Cobertura parcial",
+    uncovered: "Sem cobertura",
+  }[event.coverage];
+}
+function renderCashPlanningCycle(cycle) {
+  const incomeName =
+    cycle.events.length === 1
+      ? cycle.events[0].item.description
+      : `${cycle.events.length} entradas previstas`;
+  const expenseCount =
+    cycle.expenses.length === 1
+      ? "1 despesa"
+      : `${cycle.expenses.length} despesas`;
+  const until = cycle.nextIncomeDate
+    ? `até a próxima entrada, em ${formatFullDate(cycle.nextIncomeDate)}`
+    : `até o fim da análise, em ${formatFullDate(
+        addDaysToKey(todayKey(), cashPlanningConfig().horizonDays),
+      )}`;
+  const resultClass = cycle.freeAfterReserve >= 0 ? "positive" : "negative";
+  return `<article class="cash-cycle"><header><span>${icon("banknote")}</span><div><small>AO RECEBER EM ${formatFullDate(cycle.date)}</small><h3>${esc(incomeName)}</h3></div><strong>+ ${money.format(cycle.amount)}</strong></header><p>${cycle.expenses.length ? `Separe <b>${money.format(cycle.expenseTotal)}</b> para ${expenseCount} que vencem ${until}.` : `Nenhuma despesa está prevista ${until}.`}</p><div class="cash-cycle-result"><span><small>Saldo após obrigações</small><b>${money.format(cycle.afterObligations)}</b></span><span class="${resultClass}"><small>${cycle.freeAfterReserve >= 0 ? "Livre após a reserva" : "Déficit para preservar a reserva"}</small><b>${money.format(Math.abs(cycle.freeAfterReserve))}</b></span></div></article>`;
+}
+function renderCashTimelineEvent(event) {
+  const income = event.type === "income";
+  const dateCopy = event.overdue
+    ? `Venceu em ${formatFullDate(event.originalDate)} · considerado hoje`
+    : `${income ? "Entrada prevista" : `Prioridade ${priorityLabel(event.item).toLowerCase()}`} · ${formatFullDate(event.date)}`;
+  return `<button class="cash-timeline-event is-${income ? "income" : event.coverage}" type="button" data-edit="${event.item.id}"><span class="cash-timeline-marker">${icon(income ? "trending-up" : "receipt")}</span><span class="cash-timeline-copy"><b>${esc(event.item.description)}</b><small>${dateCopy}</small></span><span class="cash-timeline-value"><b class="${income ? "positive" : ""}">${income ? "+ " : "− "}${money.format(event.amount)}</b><small>Saldo: <strong class="${event.balanceAfter < 0 ? "negative" : ""}">${money.format(event.balanceAfter)}</strong></small></span>${income ? '<span class="cash-coverage income">Prevista</span>' : `<span class="cash-coverage ${event.coverage}">${planningCoverageLabel(event)}</span>`}</button>`;
+}
+function renderCashPlanning() {
+  if (!state.selected) return emptyManagement();
+  const config = cashPlanningConfig();
+  if (!config.configured) {
+    return `<section class="cash-planning-empty"><span>${icon("chart")}</span><small>PLANEJAMENTO DE CAIXA</small><h2>Primeiro, informe o dinheiro disponível hoje</h2><p>Com o saldo atual e uma reserva mínima, o OrganizaContas consegue cruzar cada entrada com os vencimentos seguintes.</p><button class="btn btn-primary" type="button" data-go="settings" data-focus="cashPlanningSettings">Configurar planejamento</button></section>`;
+  }
+  const analysis = buildCashFlowAnalysis();
+  const meta = cashPlanningHealthMeta(analysis);
+  const nextIncomeCopy = analysis.nextIncomeGroup
+    ? `<b>${money.format(analysis.nextIncomeGroup.amount)}</b><small>${formatFullDate(analysis.nextIncomeGroup.date)}</small>`
+    : `<b>Não prevista</b><small>Nos próximos ${analysis.config.horizonDays} dias</small>`;
+  const openingCaption = analysis.appliedTransactions.length
+    ? `${analysis.appliedTransactions.length} ${analysis.appliedTransactions.length === 1 ? "baixa aplicada" : "baixas aplicadas"} desde ${formatFullDate(analysis.config.balanceDate)}`
+    : `Saldo-base de ${formatFullDate(analysis.config.balanceDate)}`;
+  const cycles = analysis.cycles.length
+    ? analysis.cycles.map(renderCashPlanningCycle).join("")
+    : `<div class="cash-planning-inline-empty">Cadastre uma entrada futura para receber uma estratégia de separação por recebimento.</div>`;
+  const timeline = analysis.processedEvents.length
+    ? analysis.processedEvents.map(renderCashTimelineEvent).join("")
+    : empty("Nenhuma entrada ou despesa pendente no horizonte analisado.");
+  const attention = analysis.attentionEvents.length
+    ? `<section class="panel cash-attention-panel"><div class="panel-head"><div><h2>Contas que pedem ação</h2><p>Priorizadas por vencimento e importância</p></div><span class="cash-attention-count">${analysis.attentionEvents.length}</span></div><div class="cash-attention-list">${analysis.attentionEvents.map((event) => `<button type="button" data-edit="${event.item.id}">${categoryIconBadge(event.item)}<span><b>${esc(event.item.description)}</b><small>${priorityLabel(event.item)} · ${formatFullDate(event.originalDate || event.date)}</small></span><strong>${money.format(event.amount)}</strong><i class="${event.coverage}">${planningCoverageLabel(event)}</i></button>`).join("")}</div></section>`
+    : `<section class="panel cash-attention-panel is-clear"><span>${icon("shield")}</span><div><h2>Nenhuma conta descoberta</h2><p>Com os dados atuais, todas as despesas do período têm cobertura e a reserva é preservada.</p></div></section>`;
+  const lateIncomeAlert = analysis.lateIncomes.length
+    ? `<section class="cash-late-income-alert">${icon("receipt")}<div><b>${analysis.lateIncomes.length} ${analysis.lateIncomes.length === 1 ? "entrada esperada está atrasada" : "entradas esperadas estão atrasadas"}</b><p>Como a data já passou e o recebimento não foi confirmado, esses valores não foram usados para cobrir as contas.</p></div></section>`
+    : "";
+  return `<div class="cash-planning-page"><div class="cash-planning-page-head"><div><span class="eyebrow">PRÓXIMOS ${analysis.config.horizonDays} DIAS</span><h2>Seu dinheiro no tempo</h2><p>Projeção de ${formatFullDate(analysis.startDate)} a ${formatFullDate(analysis.endDate)}</p></div><button class="btn btn-soft" type="button" data-go="settings" data-focus="cashPlanningSettings">${icon("settings")} Ajustar planejamento</button></div>${lateIncomeAlert}<section class="cash-health-card is-${analysis.health}"><div class="cash-health-status"><span>${meta.icon}</span><div><small>${meta.label}</small><h2>${meta.title}</h2><p>${cashPlanningPrimaryText(analysis)}</p></div></div><div class="cash-health-minimum"><small>Menor saldo projetado</small><b>${money.format(analysis.minimumBalance)}</b><span>em ${formatFullDate(analysis.minimumBalanceDate)}</span></div></section><section class="cash-kpis"><article><span>${icon("wallet")}</span><div><small>Disponível hoje</small><b>${money.format(analysis.openingBalance)}</b><em>${openingCaption}</em></div></article><article><span>${icon("receipt")}</span><div><small>Até a próxima entrada</small><b>${money.format(analysis.requiredBeforeNextIncome)}</b><em>${analysis.expensesBeforeNextIncome.length} ${analysis.expensesBeforeNextIncome.length === 1 ? "conta" : "contas"}</em></div></article><article><span>${icon("trending-up")}</span><div><small>Próxima entrada</small>${nextIncomeCopy}</div></article><article><span>${icon("chart")}</span><div><small>Saldo ao fim da análise</small><b class="${analysis.projectedBalance < 0 ? "negative" : ""}">${money.format(analysis.projectedBalance)}</b><em>Reserva: ${money.format(analysis.config.minimumReserve)}</em></div></article></section><section class="cash-planning-grid"><article class="panel cash-strategy-panel"><div class="panel-head"><div><h2>Como separar cada recebimento</h2><p>Obrigações agrupadas até a entrada seguinte</p></div></div><div class="cash-cycle-list">${cycles}</div></article>${attention}</section><article class="panel cash-timeline-panel"><div class="panel-head"><div><h2>Linha do tempo do caixa</h2><p>Entradas entram primeiro; depois, as contas do mesmo dia são priorizadas.</p></div><span>${analysis.processedEvents.length} movimentos</span></div><div class="cash-timeline-start"><span>Hoje</span><b>${money.format(analysis.openingBalance)}</b></div><div class="cash-timeline">${timeline}</div></article><p class="cash-planning-note">${icon("shield")} Esta é uma projeção baseada nos lançamentos cadastrados. Reserve o dinheiro quando recebê-lo e, sem desconto, prefira agendar o pagamento para o vencimento.</p></div>`;
+}
+
 function renderDashboard(monthName) {
   if (!state.selected) return emptyManagement();
   const total = totals();
@@ -763,7 +1133,7 @@ function renderDashboard(monthName) {
       item.status !== "paid" &&
       item.dueDate === todayKey(),
   );
-  return `<div class="content-head">${monthControl(monthName)}<span>${monthTransactions().length} lançamentos no período</span></div>${dueToday.length ? renderTodayAlert(dueToday) : ""}<section class="summary-grid">${summary("Entradas", total.income, "success", "↗", "income")}${summary("Despesas", total.expense, "danger", "↘", "expense")}${summary("Pago", total.paid, "info", "✓", "paid")}${summary("Saldo previsto", total.income - total.expense, total.income - total.expense >= 0 ? "success" : "danger", "=")}</section>${renderPendingPaymentStatus(total)}${renderExpenseInsights(monthName)}<section class="dashboard-grid">${renderBudgetScore(total.expense)}<article class="panel upcoming-panel"><div class="panel-head"><div><h2>Lançamentos do período</h2><p>Organizados em relação à data de hoje</p></div><button class="text-btn" data-go="calendar" data-layout="agenda">Ver na agenda</button></div>${list.length ? renderDashboardGroups(list) : empty("Nenhum lançamento neste mês.")}</article><article class="panel status-panel"><div class="panel-head"><div><h2>Situação das despesas</h2><p>Acompanhamento do mês</p></div></div><div class="donut" style="--paid:${total.expense ? Math.round((total.paid / total.expense) * 100) : 0}"><div><b>${total.expense ? Math.round((total.paid / total.expense) * 100) : 0}%</b><span>pago</span></div></div><div class="legend"><span><i class="dot blue"></i>Pago <b>${money.format(total.paid)}</b></span><span><i class="dot orange"></i>Pendente <b>${money.format(total.pending)}</b></span></div></article></section>`;
+  return `<div class="content-head">${monthControl(monthName)}<span>${monthTransactions().length} lançamentos no período</span></div>${dueToday.length ? renderTodayAlert(dueToday) : ""}${renderCashPlanningTeaser()}<section class="summary-grid">${summary("Entradas", total.income, "success", "↗", "income")}${summary("Despesas", total.expense, "danger", "↘", "expense")}${summary("Pago", total.paid, "info", "✓", "paid")}${summary("Saldo previsto", total.income - total.expense, total.income - total.expense >= 0 ? "success" : "danger", "=")}</section>${renderPendingPaymentStatus(total)}${renderExpenseInsights(monthName)}<section class="dashboard-grid">${renderBudgetScore(total.expense)}<article class="panel upcoming-panel"><div class="panel-head"><div><h2>Lançamentos do período</h2><p>Organizados em relação à data de hoje</p></div><button class="text-btn" data-go="calendar" data-layout="agenda">Ver na agenda</button></div>${list.length ? renderDashboardGroups(list) : empty("Nenhum lançamento neste mês.")}</article><article class="panel status-panel"><div class="panel-head"><div><h2>Situação das despesas</h2><p>Acompanhamento do mês</p></div></div><div class="donut" style="--paid:${total.expense ? Math.round((total.paid / total.expense) * 100) : 0}"><div><b>${total.expense ? Math.round((total.paid / total.expense) * 100) : 0}%</b><span>pago</span></div></div><div class="legend"><span><i class="dot blue"></i>Pago <b>${money.format(total.paid)}</b></span><span><i class="dot orange"></i>Pendente <b>${money.format(total.pending)}</b></span></div></article></section>`;
 }
 function renderPendingPaymentStatus(total) {
   if (!total.expense) return "";
@@ -1055,6 +1425,16 @@ function renderCardsSettings() {
   const emptyCards = `<div class="cards-empty">${icon("credit-card")}<div><b>Nenhum cartão cadastrado</b><span>Cadastre seus cartões para identificar cada fatura no calendário.</span></div></div>`;
   return `${activeCards.length ? `<div class="cards-gallery">${group(activeCards)}</div>` : emptyCards}${archivedCards.length ? `<details class="archived-cards"><summary>${archivedCards.length} ${archivedCards.length === 1 ? "cartão arquivado" : "cartões arquivados"}</summary><div class="cards-gallery">${group(archivedCards, true)}</div></details>` : ""}`;
 }
+function renderCashPlanningSettings() {
+  const content = state.selected
+    ? (() => {
+        const config = cashPlanningConfig();
+        const readonly = !canEdit();
+        return `<form class="cash-planning-settings-form" id="cashPlanningForm"><div class="cash-planning-settings-fields"><label>Saldo disponível agora<div class="currency-field"><span>R$</span><input name="currentBalance" type="number" step="0.01" value="${config.configured ? config.currentBalance : ""}" placeholder="Ex.: 2500,00" inputmode="decimal" required ${readonly ? "disabled" : ""}></div><small>Informe o saldo já considerando o que foi pago e recebido hoje.</small></label><label>Reserva mínima<div class="currency-field"><span>R$</span><input name="minimumReserve" type="number" min="0" step="0.01" value="${config.configured ? config.minimumReserve : "0"}" inputmode="decimal" required ${readonly ? "disabled" : ""}></div><small>Valor que o planejamento deve tentar preservar.</small></label><label>Horizonte da análise<select name="horizonDays" ${readonly ? "disabled" : ""}><option value="30" ${config.horizonDays === 30 ? "selected" : ""}>Próximos 30 dias</option><option value="60" ${config.horizonDays === 60 ? "selected" : ""}>Próximos 60 dias</option><option value="90" ${config.horizonDays === 90 ? "selected" : ""}>Próximos 90 dias</option></select><small>Período usado nas projeções e recomendações.</small></label></div><div class="cash-planning-settings-actions">${config.configured ? `<span>Saldo-base informado em <b>${formatFullDate(config.balanceDate)}</b></span>` : "<span>O planejamento será calculado assim que você salvar.</span>"}${readonly ? '<p class="settings-readonly">Seu acesso permite visualizar, mas não alterar este planejamento.</p>' : '<button class="btn btn-primary" type="submit">Salvar planejamento</button>'}${config.configured ? '<button class="btn btn-soft" type="button" data-go="planning">Abrir análise</button>' : ""}</div></form>`;
+      })()
+    : `<div class="settings-empty"><p>Selecione um gerenciamento para configurar o planejamento de caixa.</p></div>`;
+  return `<section class="panel settings-card settings-cash-planning" id="cashPlanningSettings"><div class="settings-card-head"><span class="settings-card-icon">${icon("chart")}</span><div><h2>Planejamento de caixa</h2><p>Cruze saldo, recebimentos e vencimentos para proteger o dinheiro das próximas contas.</p></div></div>${content}</section>`;
+}
 function renderSettings(monthName) {
   const limit = expenseLimitForMonth();
   const currentExpense = state.selected ? totals().expense : 0;
@@ -1066,7 +1446,7 @@ function renderSettings(monthName) {
     : `<div class="settings-empty"><p>Selecione ou crie um gerenciamento para definir o limite mensal.</p></div>`;
   const managementActions = `${canEdit() ? `<button class="btn btn-soft" id="editManagement" type="button">${icon("edit")} Editar gerenciamento</button>` : ""}${isOwner() ? `<button class="btn btn-soft" id="shareBtn" type="button">${icon("share")} Compartilhar acesso</button>` : ""}${canCreate ? `<button class="btn btn-primary" id="newManagement" type="button">${icon("plus")} Novo gerenciamento</button>` : ""}`;
   const sessionCard = `<section class="panel settings-card settings-session-card"><div class="settings-card-head"><span class="settings-card-icon">${icon("logout")}</span><div><h2>Conta e sessão</h2><p>Consulte seu acesso ou encerre a sessão neste aparelho.</p></div></div><div class="settings-session-profile"><span>${initials(state.profile.name)}</span><div><b>${esc(state.profile.name)}</b><small>${esc(state.profile.email || state.user.email || "")}</small></div></div><button class="btn btn-danger settings-logout-button" id="settingsLogout" type="button">${icon("logout")} Sair da conta</button></section>`;
-  return `<div class="settings-grid"><section class="panel settings-card settings-budget"><div class="settings-card-head"><span class="settings-card-icon">${icon("gauge")}</span><div><h2>Planejamento mensal</h2><p>Defina o teto de despesas para cada mês.</p></div><label class="settings-month">Período<input id="settingsMonthInput" type="month" value="${state.month}" aria-label="Mês do limite de despesas"></label></div>${budgetContent}</section><section class="panel settings-card settings-cards"><div class="settings-card-head"><span class="settings-card-icon">${icon("credit-card")}</span><div><h2>Meus cartões</h2><p>Identifique as faturas pelo cartão, titular e aparência.</p></div>${state.selected && canEdit() ? `<button class="btn btn-primary settings-card-cta" id="newCard" type="button">${icon("plus")} Adicionar cartão</button>` : ""}</div>${renderCardsSettings()}</section><section class="panel settings-card"><div class="settings-card-head"><span class="settings-card-icon">${icon("wallet")}</span><div><h2>Gerenciamentos</h2><p>Crie, edite e compartilhe seus espaços financeiros.</p></div></div>${state.selected ? `<div class="settings-management"><small>Selecionado agora</small><b>${esc(state.selected.name)}</b><span>${esc(state.selected.description || "Sem descrição")}</span></div>` : '<div class="settings-empty"><p>Nenhum gerenciamento selecionado.</p></div>'}<div class="settings-actions settings-actions-wrap">${managementActions || '<span class="settings-readonly">Sem ações disponíveis para este acesso.</span>'}</div></section><section class="panel settings-card"><div class="settings-card-head"><span class="settings-card-icon">${icon("palette")}</span><div><h2>Aparência</h2><p>Escolha como o OrganizaContas deve ser exibido.</p></div></div><div class="theme-options" role="group" aria-label="Escolher tema"><button type="button" data-theme-choice="light" class="${preference === "light" ? "active" : ""}">${icon("sun")}<span><b>Claro</b><small>Sempre claro</small></span></button><button type="button" data-theme-choice="dark" class="${preference === "dark" ? "active" : ""}">${icon("moon")}<span><b>Escuro</b><small>Sempre escuro</small></span></button><button type="button" data-theme-choice="system" class="${preference === "system" ? "active" : ""}">${icon("monitor")}<span><b>Sistema</b><small>Segue o aparelho</small></span></button></div></section>${state.profile.role === "master" ? `<section class="panel settings-card settings-users-card"><div class="settings-card-head"><span class="settings-card-icon">${icon("users")}</span><div><h2>Usuários e permissões</h2><p>Crie acessos e defina quem pode criar gerenciamentos.</p></div></div><button class="settings-link" type="button" data-go="users"><span>Abrir gestão de usuários</span><b>›</b></button></section>` : ""}${sessionCard}</div>`;
+  return `<div class="settings-grid"><section class="panel settings-card settings-budget"><div class="settings-card-head"><span class="settings-card-icon">${icon("gauge")}</span><div><h2>Planejamento mensal</h2><p>Defina o teto de despesas para cada mês.</p></div><label class="settings-month">Período<input id="settingsMonthInput" type="month" value="${state.month}" aria-label="Mês do limite de despesas"></label></div>${budgetContent}</section>${renderCashPlanningSettings()}<section class="panel settings-card settings-cards"><div class="settings-card-head"><span class="settings-card-icon">${icon("credit-card")}</span><div><h2>Meus cartões</h2><p>Identifique as faturas pelo cartão, titular e aparência.</p></div>${state.selected && canEdit() ? `<button class="btn btn-primary settings-card-cta" id="newCard" type="button">${icon("plus")} Adicionar cartão</button>` : ""}</div>${renderCardsSettings()}</section><section class="panel settings-card"><div class="settings-card-head"><span class="settings-card-icon">${icon("wallet")}</span><div><h2>Gerenciamentos</h2><p>Crie, edite e compartilhe seus espaços financeiros.</p></div></div>${state.selected ? `<div class="settings-management"><small>Selecionado agora</small><b>${esc(state.selected.name)}</b><span>${esc(state.selected.description || "Sem descrição")}</span></div>` : '<div class="settings-empty"><p>Nenhum gerenciamento selecionado.</p></div>'}<div class="settings-actions settings-actions-wrap">${managementActions || '<span class="settings-readonly">Sem ações disponíveis para este acesso.</span>'}</div></section><section class="panel settings-card"><div class="settings-card-head"><span class="settings-card-icon">${icon("palette")}</span><div><h2>Aparência</h2><p>Escolha como o OrganizaContas deve ser exibido.</p></div></div><div class="theme-options" role="group" aria-label="Escolher tema"><button type="button" data-theme-choice="light" class="${preference === "light" ? "active" : ""}">${icon("sun")}<span><b>Claro</b><small>Sempre claro</small></span></button><button type="button" data-theme-choice="dark" class="${preference === "dark" ? "active" : ""}">${icon("moon")}<span><b>Escuro</b><small>Sempre escuro</small></span></button><button type="button" data-theme-choice="system" class="${preference === "system" ? "active" : ""}">${icon("monitor")}<span><b>Sistema</b><small>Segue o aparelho</small></span></button></div></section>${state.profile.role === "master" ? `<section class="panel settings-card settings-users-card"><div class="settings-card-head"><span class="settings-card-icon">${icon("users")}</span><div><h2>Usuários e permissões</h2><p>Crie acessos e defina quem pode criar gerenciamentos.</p></div></div><button class="settings-link" type="button" data-go="users"><span>Abrir gestão de usuários</span><b>›</b></button></section>` : ""}${sessionCard}</div>`;
 }
 function emptyManagement() {
   return `<section class="empty-state"><div>◫</div><h2>Comece criando um gerenciamento</h2><p>Você poderá organizar as contas da casa e compartilhar o calendário com outra pessoa.</p>${state.profile.canCreateManagement || state.profile.role === "master" ? '<button class="btn btn-primary" id="emptyCreate">Criar gerenciamento</button>' : "<p>Peça ao administrador permissão para criar gerenciamentos.</p>"}</section>`;
@@ -1105,12 +1485,20 @@ function bindShell() {
     (button) =>
       (button.onclick = () => {
         state.view = button.dataset.go;
+        const focusTarget = button.dataset.focus;
         if (button.dataset.layout) {
           state.calendarLayout = button.dataset.layout;
           localStorage.setItem("organiza-calendar-layout", state.calendarLayout);
         }
         if (state.view === "users") observeUsers();
         renderApp();
+        if (focusTarget) {
+          requestAnimationFrame(() =>
+            document
+              .getElementById(focusTarget)
+              ?.scrollIntoView({ behavior: "smooth", block: "center" }),
+          );
+        }
       }),
   );
   document.querySelectorAll("[data-expense-category]").forEach(
@@ -1204,6 +1592,39 @@ function bindShell() {
     (button) =>
       (button.onclick = () => setThemePreference(button.dataset.themeChoice)),
   );
+  const cashPlanningForm = document.querySelector("#cashPlanningForm");
+  if (cashPlanningForm && canEdit()) {
+    cashPlanningForm.onsubmit = async (event) => {
+      event.preventDefault();
+      const button = cashPlanningForm.querySelector('button[type="submit"]');
+      const currentBalance = Number(cashPlanningForm.currentBalance.value);
+      const minimumReserve = Number(cashPlanningForm.minimumReserve.value);
+      if (
+        cashPlanningForm.currentBalance.value === "" ||
+        !Number.isFinite(currentBalance)
+      ) {
+        toast("Informe o saldo disponível atualmente.", "danger");
+        return;
+      }
+      if (!Number.isFinite(minimumReserve) || minimumReserve < 0) {
+        toast("A reserva mínima não pode ser negativa.", "danger");
+        return;
+      }
+      busy(button, true);
+      try {
+        await FirebaseService.setCashPlanning(state.selected.id, {
+          currentBalance,
+          minimumReserve,
+          horizonDays: Number(cashPlanningForm.horizonDays.value),
+          balanceDate: todayKey(),
+        });
+        toast("Planejamento de caixa atualizado.");
+      } catch (error) {
+        firebaseError(error);
+        busy(button, false);
+      }
+    };
+  }
   const expenseLimitForm = document.querySelector("#expenseLimitForm");
   if (expenseLimitForm) {
     expenseLimitForm.onsubmit = async (event) => {
@@ -2497,6 +2918,22 @@ function executeVoiceCommand(transcript) {
   }
   if (
     wantsToOpen &&
+    voiceHasAny(command, [
+      "planejamento",
+      "planejamento de caixa",
+      "análise de caixa",
+      "analise de caixa",
+      "fluxo de caixa",
+    ])
+  ) {
+    completeVoiceAction("Abrindo o planejamento de caixa.", () => {
+      state.view = "planning";
+      renderApp();
+    });
+    return;
+  }
+  if (
+    wantsToOpen &&
     voiceHasAny(command, ["agenda", "calendário", "minhas contas"])
   ) {
     completeVoiceAction("Abrindo a agenda.", () => {
@@ -2621,7 +3058,7 @@ function calendarStatus(item) {
 }
 function openRecordDetails(item) {
   showModal(
-    `<article class="modal"><button class="modal-close" type="button">×</button><span class="eyebrow">SOMENTE LEITURA</span><h2>${esc(item.description)}</h2><p>${esc(categoryMeta(item))} · ${formatDate(item.dueDate)}</p><div class="summary">${categoryIconBadge(item, "summary-icon")}<div><small>Valor</small><b>${money.format(item.amount)}</b></div></div>${item.category === "Cartão" ? `<p><strong>Cartão:</strong> ${esc(cardNameFor(item))}</p>` : ""}<p><strong>Data planejada:</strong> ${formatDate(item.plannedDate)}</p><p><strong>Data real:</strong> ${formatDate(item.paidDate)}</p>${item.notes ? `<p>${esc(item.notes)}</p>` : ""}${item.attachment?.url ? `<a class="btn btn-soft" href="${attr(item.attachment.url)}" target="_blank" rel="noopener">Abrir comprovante</a>` : ""}</article>`,
+    `<article class="modal"><button class="modal-close" type="button">×</button><span class="eyebrow">SOMENTE LEITURA</span><h2>${esc(item.description)}</h2><p>${esc(categoryMeta(item))} · ${formatDate(item.dueDate)}</p><div class="summary">${categoryIconBadge(item, "summary-icon")}<div><small>Valor</small><b>${money.format(item.amount)}</b></div></div>${item.category === "Cartão" ? `<p><strong>Cartão:</strong> ${esc(cardNameFor(item))}</p>` : ""}${item.type === "expense" ? `<p><strong>Prioridade:</strong> ${priorityLabel(item)}</p>` : ""}<p><strong>Data planejada:</strong> ${formatDate(item.plannedDate)}</p><p><strong>Data real:</strong> ${formatDate(item.paidDate)}</p>${item.notes ? `<p>${esc(item.notes)}</p>` : ""}${item.attachment?.url ? `<a class="btn btn-soft" href="${attr(item.attachment.url)}" target="_blank" rel="noopener">Abrir comprovante</a>` : ""}</article>`,
   );
 }
 function openSummaryModal(type) {
@@ -2893,6 +3330,7 @@ function refreshRecordCardField(form, preferredId) {
 function openRecordModal(item = {}) {
   const type = item.type || "expense";
   const paid = item.status === "paid";
+  const priority = expensePriority(item);
   const isRecurring = Boolean(
     item.recurrenceGroupId && Number(item.recurrenceTotal) > 1,
   );
@@ -2927,13 +3365,16 @@ function openRecordModal(item = {}) {
       ? `<section class="recurrence-context full"><b>${item.recurrenceType === "installment" ? "Parcela" : "Despesa recorrente"} ${item.recurrenceIndex} de ${item.recurrenceTotal}</b><small>Valor, datas e descrição podem ser propagados. Pagamento e comprovante continuam individuais.</small><div class="recurrence-scope" role="radiogroup" aria-label="Alcance da alteração"><label><input type="radio" name="recurrenceScope" value="single" checked><span><b>Somente este</b><small>Os outros meses não mudam</small></span></label>${remainingOccurrences > 1 ? `<label><input type="radio" name="recurrenceScope" value="future"><span><b>Este e os próximos</b><small>${remainingOccurrences} lançamentos</small></span></label>` : ""}<label><input type="radio" name="recurrenceScope" value="all"><span><b>Toda a série</b><small>${seriesOccurrences} lançamentos</small></span></label></div></section>`
       : "";
   showModal(
-    `<form class="modal modal-large" id="recordForm"><button class="modal-close" type="button">×</button><span class="eyebrow">${item.id ? "EDITAR" : "NOVO"} LANÇAMENTO</span><h2>${item.id ? esc(item.description) : "Adicionar ao calendário"}</h2><div class="type-toggle"><label><input type="radio" name="type" value="expense" ${type === "expense" ? "checked" : ""}> Débito</label><label><input type="radio" name="type" value="income" ${type === "income" ? "checked" : ""}> Entrada</label></div><div class="form-grid"><label>Descrição<input name="description" value="${attr(baseDescription)}" required maxlength="120"></label><label>Valor<input name="amount" type="number" min="0.01" step="0.01" value="${item.amount || ""}" required></label><label>Categoria<select name="category" id="categorySelect" required></select></label><label>Data de vencimento/recebimento<input name="dueDate" type="date" value="${item.dueDate || ""}" required></label><section class="record-card-field full" id="recordCardField" hidden><div class="record-card-select-row"><label>Cartão da fatura<select name="cardId" id="recordCardSelect"></select></label><button class="btn btn-soft" id="quickAddCard" type="button">${icon("plus")} Cadastrar cartão</button></div><div id="recordCardPreview"></div></section><label>Data que deseja pagar/receber<input name="plannedDate" type="date" value="${item.plannedDate || item.dueDate || ""}"></label><label>Status<select name="status" id="status"><option value="pending" ${!paid ? "selected" : ""}>Pendente</option><option value="paid" ${paid ? "selected" : ""}>${type === "income" ? "Recebido" : "Pago"}</option></select></label><label id="paidDateLabel">Data real do pagamento/recebimento<input name="paidDate" type="date" value="${item.paidDate || ""}"></label>${recurrenceFields}<label class="full">Observações<textarea name="notes" maxlength="500">${esc(item.notes || "")}</textarea></label><label class="full file-label">Comprovante (imagem ou PDF, até 10 MB)<input name="attachment" type="file" accept="image/jpeg,image/png,image/webp,application/pdf">${item.attachment?.url ? `<a href="${attr(item.attachment.url)}" target="_blank" rel="noopener">Abrir comprovante atual: ${esc(item.attachment.name)}</a>` : ""}</label></div><div class="modal-actions">${item.id ? '<button class="btn btn-danger" type="button" id="deleteRecord">Excluir</button>' : ""}<button class="btn btn-primary" type="submit">Salvar lançamento</button></div></form>`,
+    `<form class="modal modal-large" id="recordForm"><button class="modal-close" type="button">×</button><span class="eyebrow">${item.id ? "EDITAR" : "NOVO"} LANÇAMENTO</span><h2>${item.id ? esc(item.description) : "Adicionar ao calendário"}</h2><div class="type-toggle"><label><input type="radio" name="type" value="expense" ${type === "expense" ? "checked" : ""}> Débito</label><label><input type="radio" name="type" value="income" ${type === "income" ? "checked" : ""}> Entrada</label></div><div class="form-grid"><label>Descrição<input name="description" value="${attr(baseDescription)}" required maxlength="120"></label><label>Valor<input name="amount" type="number" min="0.01" step="0.01" value="${item.amount || ""}" required></label><label>Categoria<select name="category" id="categorySelect" required></select></label><label>Data de vencimento/recebimento<input name="dueDate" type="date" value="${item.dueDate || ""}" required></label><section class="record-card-field full" id="recordCardField" hidden><div class="record-card-select-row"><label>Cartão da fatura<select name="cardId" id="recordCardSelect"></select></label><button class="btn btn-soft" id="quickAddCard" type="button">${icon("plus")} Cadastrar cartão</button></div><div id="recordCardPreview"></div></section><label>Data que deseja pagar/receber<input name="plannedDate" type="date" value="${item.plannedDate || item.dueDate || ""}"></label><label id="recordPriorityField" ${type === "income" ? "hidden" : ""}>Prioridade no planejamento<select name="priority"><option value="essential" ${priority === "essential" ? "selected" : ""}>Essencial</option><option value="important" ${priority === "important" ? "selected" : ""}>Importante</option><option value="flexible" ${priority === "flexible" ? "selected" : ""}>Flexível</option></select><small>Usada quando o dinheiro não cobre todas as contas.</small></label><label>Status<select name="status" id="status"><option value="pending" ${!paid ? "selected" : ""}>Pendente</option><option value="paid" ${paid ? "selected" : ""}>${type === "income" ? "Recebido" : "Pago"}</option></select></label><label id="paidDateLabel">Data real do pagamento/recebimento<input name="paidDate" type="date" value="${item.paidDate || ""}"></label>${recurrenceFields}<label class="full">Observações<textarea name="notes" maxlength="500">${esc(item.notes || "")}</textarea></label><label class="full file-label">Comprovante (imagem ou PDF, até 10 MB)<input name="attachment" type="file" accept="image/jpeg,image/png,image/webp,application/pdf">${item.attachment?.url ? `<a href="${attr(item.attachment.url)}" target="_blank" rel="noopener">Abrir comprovante atual: ${esc(item.attachment.name)}</a>` : ""}</label></div><div class="modal-actions">${item.id ? '<button class="btn btn-danger" type="button" id="deleteRecord">Excluir</button>' : ""}<button class="btn btn-primary" type="submit">Salvar lançamento</button></div></form>`,
   );
   const form = document.querySelector("#recordForm");
   const category = form.querySelector("#categorySelect");
   const recurrenceCard = form.querySelector("#recurrenceCard");
   const recurrenceOptions = form.querySelector("#recurrenceOptions");
   const recurrenceToggle = form.elements.recurrenceEnabled;
+  const priorityField = form.querySelector("#recordPriorityField");
+  const prioritySelect = form.elements.priority;
+  let priorityTouched = Boolean(item.priority);
   const submitButton = form.querySelector('button[type="submit"]');
   const updateRecurrence = () => {
     if (!recurrenceCard) return;
@@ -2947,6 +3388,14 @@ function openRecordModal(item = {}) {
       ? "Criar lançamentos"
       : "Salvar lançamento";
   };
+  const updatePriority = () => {
+    const isExpense = form.type.value === "expense";
+    priorityField.hidden = !isExpense;
+    prioritySelect.disabled = !isExpense;
+    if (isExpense && !priorityTouched) {
+      prioritySelect.value = defaultExpensePriority(category.value);
+    }
+  };
   const fillCategories = () => {
     const current = category.value || item.category;
     category.innerHTML = `<option value="">Selecione uma categoria</option>${categories[form.type.value]
@@ -2955,14 +3404,21 @@ function openRecordModal(item = {}) {
     form.status.options[1].textContent =
       form.type.value === "income" ? "Recebido" : "Pago";
     updateRecurrence();
+    updatePriority();
     refreshRecordCardField(form, item.cardId);
   };
   form
     .querySelectorAll('[name="type"]')
     .forEach((i) => (i.onchange = fillCategories));
   if (recurrenceToggle) recurrenceToggle.onchange = updateRecurrence;
+  prioritySelect.onchange = () => {
+    priorityTouched = true;
+  };
   fillCategories();
-  category.onchange = () => refreshRecordCardField(form);
+  category.onchange = () => {
+    refreshRecordCardField(form);
+    updatePriority();
+  };
   form.querySelector("#recordCardSelect").onchange = () =>
     refreshRecordCardField(form);
   form.querySelector("#quickAddCard").onclick = () =>
@@ -2983,6 +3439,10 @@ function openRecordModal(item = {}) {
       const recurrenceMonths = Number(data.recurrenceMonths);
       const recurrenceType = data.recurrenceType || "fixed";
       const recurrenceScope = data.recurrenceScope || "single";
+      data.priority =
+        data.type === "expense"
+          ? data.priority || defaultExpensePriority(data.category)
+          : "";
       delete data.recurrenceEnabled;
       delete data.recurrenceMonths;
       delete data.recurrenceType;

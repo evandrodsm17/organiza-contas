@@ -67,6 +67,19 @@ export const FirebaseService = {
       updatedAt: serverTimestamp()
     });
   },
+  setCashPlanning(managementId, data) {
+    return updateDoc(doc(useServices().db, "managements", managementId), {
+      cashPlanning: {
+        currentBalance: Number(data.currentBalance),
+        minimumReserve: Math.max(0, Number(data.minimumReserve) || 0),
+        horizonDays: [30, 60, 90].includes(Number(data.horizonDays))
+          ? Number(data.horizonDays)
+          : 60,
+        balanceDate: data.balanceDate
+      },
+      updatedAt: serverTimestamp()
+    });
+  },
   deleteManagement(id) { return deleteDoc(doc(useServices().db, "managements", id)); },
   observeTransactions(managementId, callback, onError) {
     return onSnapshot(query(collection(useServices().db, "managements", managementId, "transactions"), orderBy("dueDate")),
@@ -174,6 +187,7 @@ export const FirebaseService = {
         category: data.category,
         cardId: data.cardId || "",
         cardSnapshot: data.cardSnapshot || null,
+        priority: data.priority || "important",
         dueDate: entry.id === item.id || dueDateChanged ? shiftDateByMonths(data.dueDate, offset) : target.dueDate,
         plannedDate: entry.id === item.id || plannedDateChanged ? shiftDateByMonths(data.plannedDate, offset) : (target.plannedDate || ""),
         notes: data.notes || "",
