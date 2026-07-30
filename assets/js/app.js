@@ -687,6 +687,173 @@ function cashPlanningConfig() {
       : todayKey(),
   };
 }
+function daysBetweenKeys(from, to) {
+  const start = new Date(`${from}T12:00:00Z`);
+  const end = new Date(`${to}T12:00:00Z`);
+  return Math.max(0, Math.round((end - start) / 86400000));
+}
+function cashEventAmount(event) {
+  return Number(event.projectedAmount ?? event.amount ?? 0);
+}
+function sortCashEvents(a, b) {
+  const byDate = a.date.localeCompare(b.date);
+  if (byDate) return byDate;
+  if (a.type !== b.type) return a.type === "income" ? -1 : 1;
+  if (a.type === "expense") {
+    const byPriority =
+      expensePriorities[a.priority].rank -
+      expensePriorities[b.priority].rank;
+    if (byPriority) return byPriority;
+  }
+  return String(a.item.description || "").localeCompare(
+    String(b.item.description || ""),
+    "pt-BR",
+  );
+}
+function processCashEvents(events, openingBalance, minimumReserve, startDate) {
+  let balance = openingBalance;
+  let minimumBalance = openingBalance;
+  let minimumBalanceDate = startDate;
+  const processedEvents = events
+    .slice()
+    .sort(sortCashEvents)
+    .map((event) => {
+      const balanceBefore = balance;
+      let coverage = "";
+      if (event.type === "income") {
+        balance += event.amount;
+      } else {
+        const balanceAfter = balance - cashEventAmount(event);
+        if (balanceAfter >= minimumReserve) coverage = "covered";
+        else if (balanceAfter >= 0) coverage = "reserve";
+        else if (balance > 0) coverage = "partial";
+        else coverage = "uncovered";
+        balance = balanceAfter;
+      }
+      if (balance < minimumBalance) {
+        minimumBalance = balance;
+        minimumBalanceDate = event.date;
+      }
+      return {
+        ...event,
+        coverage,
+        balanceBefore,
+        balanceAfter: balance,
+      };
+    });
+  return {
+    processedEvents,
+    projectedBalance: balance,
+    minimumBalance,
+    minimumBalanceDate,
+  };
+}
+function buildAdaptiveCashSchedule(
+  events,
+  openingBalance,
+  minimumReserve,
+  startDate,
+  endDate,
+) {
+  const scheduled = events.map((event) => ({
+    ...event,
+    projectedAmount: event.amount,
+  }));
+  const baseline = processCashEvents(
+    scheduled,
+    openingBalance,
+    minimumReserve,
+    startDate,
+  );
+  const incomeDates = [
+    ...new Set(
+      scheduled
+        .filter((event) => event.type === "income")
+        .map((event) => event.date),
+    ),
+  ].sort();
+  const maximumIterations = Math.max(1, scheduled.length * 3);
+
+  for (let iteration = 0; iteration < maximumIterations; iteration += 1) {
+    const simulation = processCashEvents(
+      scheduled,
+      openingBalance,
+      minimumReserve,
+      startDate,
+    );
+    const problem = simulation.processedEvents.find(
+      (event) =>
+        event.type === "expense" && event.balanceAfter < minimumReserve,
+    );
+    if (!problem) break;
+
+    const candidates = scheduled
+      .filter((event) => {
+        if (
+          event.type !== "expense" ||
+          event.date > problem.date ||
+          event.item.allowLatePayment !== true
+        ) {
+          return false;
+        }
+        const maximumDays = Math.max(
+          0,
+          Math.min(90, Number(event.item.maxDelayDays || 0)),
+        );
+        if (!maximumDays) return false;
+        const nextIncomeDate = incomeDates.find(
+          (date) => date > event.date,
+        );
+        if (!nextIncomeDate || nextIncomeDate > endDate) return false;
+        return (
+          nextIncomeDate <= addDaysToKey(event.originalDate, maximumDays)
+        );
+      })
+      .map((event) => ({
+        event,
+        targetDate: incomeDates.find((date) => date > event.date),
+        feePercent: Math.max(
+          0,
+          Math.min(100, Number(event.item.lateFeePercent || 0)),
+        ),
+      }))
+      .sort((a, b) => {
+        const byPriority =
+          expensePriorities[b.event.priority].rank -
+          expensePriorities[a.event.priority].rank;
+        if (byPriority) return byPriority;
+        const byCost = a.feePercent - b.feePercent;
+        if (byCost) return byCost;
+        const byAmount = b.event.amount - a.event.amount;
+        if (byAmount) return byAmount;
+        return b.event.originalDate.localeCompare(a.event.originalDate);
+      });
+
+    const selected = candidates[0];
+    if (!selected) break;
+    const lateCost = selected.event.amount * (selected.feePercent / 100);
+    selected.event.date = selected.targetDate;
+    selected.event.suggestedDate = selected.targetDate;
+    selected.event.deferred = true;
+    selected.event.lateDays = daysBetweenKeys(
+      selected.event.originalDate,
+      selected.targetDate,
+    );
+    selected.event.lateCost = lateCost;
+    selected.event.projectedAmount = selected.event.amount + lateCost;
+  }
+
+  const optimized = processCashEvents(
+    scheduled,
+    openingBalance,
+    minimumReserve,
+    startDate,
+  );
+  const deferralSuggestions = optimized.processedEvents
+    .filter((event) => event.type === "expense" && event.deferred)
+    .sort((a, b) => a.originalDate.localeCompare(b.originalDate));
+  return { baseline, optimized, deferralSuggestions };
+}
 function buildCashFlowAnalysis() {
   const config = cashPlanningConfig();
   const startDate = todayKey();
@@ -740,49 +907,14 @@ function buildCashFlowAnalysis() {
     }
   });
 
-  events.sort((a, b) => {
-    const byDate = a.date.localeCompare(b.date);
-    if (byDate) return byDate;
-    if (a.type !== b.type) return a.type === "income" ? -1 : 1;
-    if (a.type === "expense") {
-      const byPriority =
-        expensePriorities[a.priority].rank -
-        expensePriorities[b.priority].rank;
-      if (byPriority) return byPriority;
-    }
-    return String(a.item.description || "").localeCompare(
-      String(b.item.description || ""),
-      "pt-BR",
-    );
-  });
-
-  let balance = openingBalance;
-  let minimumBalance = openingBalance;
-  let minimumBalanceDate = startDate;
-  const processedEvents = events.map((event) => {
-    const balanceBefore = balance;
-    let coverage = "";
-    if (event.type === "income") {
-      balance += event.amount;
-    } else {
-      const balanceAfter = balance - event.amount;
-      if (balanceAfter >= config.minimumReserve) coverage = "covered";
-      else if (balanceAfter >= 0) coverage = "reserve";
-      else if (balance > 0) coverage = "partial";
-      else coverage = "uncovered";
-      balance = balanceAfter;
-    }
-    if (balance < minimumBalance) {
-      minimumBalance = balance;
-      minimumBalanceDate = event.date;
-    }
-    return {
-      ...event,
-      coverage,
-      balanceBefore,
-      balanceAfter: balance,
-    };
-  });
+  const schedule = buildAdaptiveCashSchedule(
+    events,
+    openingBalance,
+    config.minimumReserve,
+    startDate,
+    endDate,
+  );
+  const processedEvents = schedule.optimized.processedEvents;
 
   const incomeGroups = processedEvents
     .filter((event) => event.type === "income")
@@ -809,7 +941,10 @@ function buildCashFlowAnalysis() {
         event.date >= group.date &&
         (!nextIncomeDate || event.date < nextIncomeDate),
     );
-    const expenseTotal = sum(expenses);
+    const expenseTotal = expenses.reduce(
+      (total, event) => total + cashEventAmount(event),
+      0,
+    );
     const balanceBefore = group.events[0].balanceBefore;
     const afterObligations = balanceBefore + group.amount - expenseTotal;
     return {
@@ -831,15 +966,18 @@ function buildCashFlowAnalysis() {
       event.type === "expense" &&
       (!nextIncome || event.date < nextIncome.date),
   );
-  const requiredBeforeNextIncome = sum(expensesBeforeNextIncome);
+  const requiredBeforeNextIncome = expensesBeforeNextIncome.reduce(
+    (total, event) => total + cashEventAmount(event),
+    0,
+  );
   const availableBeforeNextIncome = openingBalance - config.minimumReserve;
   const shortageBeforeNextIncome = Math.max(
     0,
     requiredBeforeNextIncome - availableBeforeNextIncome,
   );
-  const expenseTotal = sum(
-    processedEvents.filter((event) => event.type === "expense"),
-  );
+  const expenseTotal = processedEvents
+    .filter((event) => event.type === "expense")
+    .reduce((total, event) => total + cashEventAmount(event), 0);
   const incomeTotal = sum(
     processedEvents.filter((event) => event.type === "income"),
   );
@@ -849,9 +987,9 @@ function buildCashFlowAnalysis() {
       ["reserve", "partial", "uncovered"].includes(event.coverage),
   );
   const health =
-    minimumBalance < 0
+    schedule.optimized.minimumBalance < 0
       ? "critical"
-      : minimumBalance < config.minimumReserve
+      : schedule.optimized.minimumBalance < config.minimumReserve
         ? "warning"
         : "healthy";
 
@@ -871,9 +1009,21 @@ function buildCashFlowAnalysis() {
     shortageBeforeNextIncome,
     expenseTotal,
     incomeTotal,
-    projectedBalance: balance,
-    minimumBalance,
-    minimumBalanceDate,
+    projectedBalance: schedule.optimized.projectedBalance,
+    minimumBalance: schedule.optimized.minimumBalance,
+    minimumBalanceDate: schedule.optimized.minimumBalanceDate,
+    baselineMinimumBalance: schedule.baseline.minimumBalance,
+    baselineMinimumBalanceDate: schedule.baseline.minimumBalanceDate,
+    baselineProjectedBalance: schedule.baseline.projectedBalance,
+    deferralSuggestions: schedule.deferralSuggestions,
+    latePaymentOptions: events.filter(
+      (event) =>
+        event.type === "expense" && event.item.allowLatePayment === true,
+    ),
+    estimatedLateCost: schedule.deferralSuggestions.reduce(
+      (total, event) => total + Number(event.lateCost || 0),
+      0,
+    ),
     attentionEvents,
     health,
   };
@@ -1014,6 +1164,28 @@ function monthControl() {
 }
 
 function cashPlanningHealthMeta(analysis) {
+  const suggestionCount = analysis.deferralSuggestions.length;
+  if (suggestionCount && analysis.health === "critical") {
+    return {
+      label: "Ajuste parcial encontrado",
+      title: `A postergação reduz o aperto, mas ainda resta um déficit de ${money.format(Math.abs(analysis.minimumBalance))}`,
+      icon: "↻",
+    };
+  }
+  if (suggestionCount && analysis.health === "warning") {
+    return {
+      label: "Estratégia encontrada",
+      title: `${suggestionCount} ${suggestionCount === 1 ? "pagamento pode" : "pagamentos podem"} usar entradas posteriores`,
+      icon: "↻",
+    };
+  }
+  if (suggestionCount) {
+    return {
+      label: "Estratégia otimizada",
+      title: `${suggestionCount} ${suggestionCount === 1 ? "postergação protege" : "postergações protegem"} seu fluxo de caixa`,
+      icon: "↻",
+    };
+  }
   if (analysis.health === "critical") {
     return {
       label: "Caixa descoberto",
@@ -1035,6 +1207,19 @@ function cashPlanningHealthMeta(analysis) {
   };
 }
 function cashPlanningPrimaryText(analysis) {
+  if (analysis.deferralSuggestions.length) {
+    const suggestionCount = analysis.deferralSuggestions.length;
+    const costCopy = analysis.estimatedLateCost > 0
+      ? `com custo estimado de ${money.format(analysis.estimatedLateCost)}`
+      : "sem custo adicional cadastrado";
+    const outcomeCopy =
+      analysis.health === "critical"
+        ? "O caixa ainda fica negativo; renegocie as contas restantes antes de assumir atrasos."
+        : analysis.health === "warning"
+          ? "As contas passam a caber, mas parte da reserva mínima ainda será usada."
+          : "Assim, as demais contas podem ser pagas primeiro e a reserva mínima é preservada.";
+    return `Ao mover ${suggestionCount} ${suggestionCount === 1 ? "conta autorizada" : "contas autorizadas"} para depois de recebimentos futuros, o menor saldo melhora de ${money.format(analysis.baselineMinimumBalance)} para ${money.format(analysis.minimumBalance)}, ${costCopy}. ${outcomeCopy}`;
+  }
   if (analysis.shortageBeforeNextIncome > 0) {
     const incomeCopy = analysis.nextIncomeGroup
       ? `antes da entrada de ${money.format(analysis.nextIncomeGroup.amount)}, prevista para ${formatFullDate(analysis.nextIncomeGroup.date)}`
@@ -1085,14 +1270,73 @@ function renderCashPlanningCycle(cycle) {
         addDaysToKey(todayKey(), cashPlanningConfig().horizonDays),
       )}`;
   const resultClass = cycle.freeAfterReserve >= 0 ? "positive" : "negative";
-  return `<article class="cash-cycle"><header><span>${icon("banknote")}</span><div><small>AO RECEBER EM ${formatFullDate(cycle.date)}</small><h3>${esc(incomeName)}</h3></div><strong>+ ${money.format(cycle.amount)}</strong></header><p>${cycle.expenses.length ? `Separe <b>${money.format(cycle.expenseTotal)}</b> para ${expenseCount} que vencem ${until}.` : `Nenhuma despesa está prevista ${until}.`}</p><div class="cash-cycle-result"><span><small>Saldo após obrigações</small><b>${money.format(cycle.afterObligations)}</b></span><span class="${resultClass}"><small>${cycle.freeAfterReserve >= 0 ? "Livre após a reserva" : "Déficit para preservar a reserva"}</small><b>${money.format(Math.abs(cycle.freeAfterReserve))}</b></span></div></article>`;
+  const deferredCount = cycle.expenses.filter((event) => event.deferred).length;
+  const deferralCopy = deferredCount
+    ? ` Inclui ${deferredCount} ${deferredCount === 1 ? "conta postergada" : "contas postergadas"} para este recebimento.`
+    : "";
+  const paymentCopy =
+    cycle.expenses.length === 1 ? "será paga" : "serão pagas";
+  return `<article class="cash-cycle"><header><span>${icon("banknote")}</span><div><small>AO RECEBER EM ${formatFullDate(cycle.date)}</small><h3>${esc(incomeName)}</h3></div><strong>+ ${money.format(cycle.amount)}</strong></header><p>${cycle.expenses.length ? `Separe <b>${money.format(cycle.expenseTotal)}</b> para ${expenseCount}, que ${paymentCopy} ${until}.${deferralCopy}` : `Nenhuma despesa está prevista ${until}.`}</p><div class="cash-cycle-result"><span><small>Saldo após obrigações</small><b>${money.format(cycle.afterObligations)}</b></span><span class="${resultClass}"><small>${cycle.freeAfterReserve >= 0 ? "Livre após a reserva" : "Déficit para preservar a reserva"}</small><b>${money.format(Math.abs(cycle.freeAfterReserve))}</b></span></div></article>`;
 }
 function renderCashTimelineEvent(event) {
   const income = event.type === "income";
-  const dateCopy = event.overdue
-    ? `Venceu em ${formatFullDate(event.originalDate)} · considerado hoje`
-    : `${income ? "Entrada prevista" : `Prioridade ${priorityLabel(event.item).toLowerCase()}`} · ${formatFullDate(event.date)}`;
-  return `<button class="cash-timeline-event is-${income ? "income" : event.coverage}" type="button" data-edit="${event.item.id}"><span class="cash-timeline-marker">${icon(income ? "trending-up" : "receipt")}</span><span class="cash-timeline-copy"><b>${esc(event.item.description)}</b><small>${dateCopy}</small></span><span class="cash-timeline-value"><b class="${income ? "positive" : ""}">${income ? "+ " : "− "}${money.format(event.amount)}</b><small>Saldo: <strong class="${event.balanceAfter < 0 ? "negative" : ""}">${money.format(event.balanceAfter)}</strong></small></span>${income ? '<span class="cash-coverage income">Prevista</span>' : `<span class="cash-coverage ${event.coverage}">${planningCoverageLabel(event)}</span>`}</button>`;
+  const dateCopy = event.deferred
+    ? `Vence em ${formatFullDate(event.originalDate)} · sugestão: ${formatFullDate(event.suggestedDate)} (${event.lateDays} ${event.lateDays === 1 ? "dia" : "dias"} depois)`
+    : event.overdue
+      ? `Venceu em ${formatFullDate(event.originalDate)} · considerado hoje`
+      : `${income ? "Entrada prevista" : `Prioridade ${priorityLabel(event.item).toLowerCase()}`} · ${formatFullDate(event.date)}`;
+  const balanceCopy =
+    event.deferred && event.lateCost > 0
+      ? `Inclui ${money.format(event.lateCost)} de custo · saldo:`
+      : "Saldo:";
+  const coverage = event.deferred
+    ? '<span class="cash-coverage deferred">Após recebimento</span>'
+    : income
+      ? '<span class="cash-coverage income">Prevista</span>'
+      : `<span class="cash-coverage ${event.coverage}">${planningCoverageLabel(event)}</span>`;
+  return `<button class="cash-timeline-event is-${income ? "income" : event.coverage}${event.deferred ? " is-deferred" : ""}" type="button" data-edit="${event.item.id}"><span class="cash-timeline-marker">${icon(income ? "trending-up" : "receipt")}</span><span class="cash-timeline-copy"><b>${esc(event.item.description)}</b><small>${dateCopy}</small></span><span class="cash-timeline-value"><b class="${income ? "positive" : ""}">${income ? "+ " : "− "}${money.format(cashEventAmount(event))}</b><small>${balanceCopy} <strong class="${event.balanceAfter < 0 ? "negative" : ""}">${money.format(event.balanceAfter)}</strong></small></span>${coverage}</button>`;
+}
+function renderAdaptivePaymentStrategy(analysis) {
+  const suggestions = analysis.deferralSuggestions;
+  if (!suggestions.length) {
+    const hasOptions = analysis.latePaymentOptions.length > 0;
+    const needsAction = analysis.health !== "healthy";
+    const title = hasOptions
+      ? needsAction
+        ? "Nenhuma postergação autorizada resolve este intervalo"
+        : "O plano atual não precisa postergar contas"
+      : "Nenhuma despesa está disponível para postergação";
+    const copy = hasOptions
+      ? needsAction
+        ? "Os recebimentos futuros não chegam dentro dos limites cadastrados ou o valor liberado ainda é insuficiente. Renegocie diretamente com os credores e revise as entradas previstas."
+        : "Seu caixa já cobre as obrigações no período. O vencimento original continua sendo a melhor referência."
+      : needsAction
+        ? "Se houver uma conta realmente negociável, edite-a e informe o limite e o custo do atraso. Não autorize contas que possam interromper serviços, prejudicar seu crédito ou gerar custo imprevisível."
+        : "Se um aperto surgir, você poderá autorizar individualmente apenas contas que sejam seguras para negociar.";
+    return `<section class="panel cash-adaptive-panel is-empty"><span class="cash-adaptive-icon">${icon(hasOptions && !needsAction ? "shield" : "receipt")}</span><div><small>ESTRATÉGIA ENTRE RECEBIMENTOS</small><h2>${title}</h2><p>${copy}</p></div>${!hasOptions && needsAction ? '<button class="btn btn-soft" type="button" data-go="calendar" data-layout="agenda">Revisar despesas</button>' : ""}</section>`;
+  }
+
+  const suggestionRows = suggestions
+    .map((event) => {
+      const incomeAmount = analysis.processedEvents
+        .filter(
+          (candidate) =>
+            candidate.type === "income" &&
+            candidate.date === event.suggestedDate,
+        )
+        .reduce((total, candidate) => total + candidate.amount, 0);
+      const costCopy =
+        event.lateCost > 0
+          ? `Custo estimado: +${money.format(event.lateCost)}`
+          : "Sem custo adicional cadastrado";
+      return `<button class="cash-deferral-item" type="button" data-edit="${event.item.id}">${categoryIconBadge(event.item)}<span class="cash-deferral-copy"><b>${esc(event.item.description)}</b><small>Vence ${formatFullDate(event.originalDate)} → pagar ${formatFullDate(event.suggestedDate)}</small><em>${event.lateDays} ${event.lateDays === 1 ? "dia" : "dias"} após o vencimento · depois da entrada de ${money.format(incomeAmount)}</em></span><span class="cash-deferral-value"><b>${money.format(event.amount)}</b><small>${costCopy}</small></span></button>`;
+    })
+    .join("");
+  const costCopy =
+    analysis.estimatedLateCost > 0
+      ? money.format(analysis.estimatedLateCost)
+      : "Não cadastrado";
+  return `<section class="panel cash-adaptive-panel has-strategy"><div class="cash-adaptive-head"><div><small>ESTRATÉGIA SUGERIDA DE POSTERGAÇÃO</small><h2>Usar recebimentos posteriores para pagar mais contas agora</h2><p>O cálculo adia somente despesas que você autorizou e prioriza opções flexíveis, de menor custo informado e capazes de liberar mais caixa.</p></div><span>${icon("chart")}</span></div><div class="cash-adaptive-comparison"><span class="is-baseline"><small>Menor saldo sem ajuste</small><b>${money.format(analysis.baselineMinimumBalance)}</b><em>${formatFullDate(analysis.baselineMinimumBalanceDate)}</em></span><i aria-hidden="true">→</i><span class="is-optimized"><small>Menor saldo com a estratégia</small><b>${money.format(analysis.minimumBalance)}</b><em>${formatFullDate(analysis.minimumBalanceDate)}</em></span><span class="is-cost"><small>Custo adicional estimado</small><b>${costCopy}</b><em>${analysis.estimatedLateCost > 0 ? "Somado à projeção" : "Confirme no contrato"}</em></span></div><div class="cash-deferral-list">${suggestionRows}</div><div class="cash-adaptive-warning">${icon("shield")}<p><b>Simulação, não agendamento.</b> As datas originais não serão alteradas e nenhum pagamento será feito automaticamente. Antes de atrasar, confirme multa, juros, suspensão de serviço e efeitos no crédito; negociar antes do vencimento costuma ser mais seguro.</p></div></section>`;
 }
 function renderCashPlanning() {
   if (!state.selected) return emptyManagement();
@@ -1120,7 +1364,7 @@ function renderCashPlanning() {
   const lateIncomeAlert = analysis.lateIncomes.length
     ? `<section class="cash-late-income-alert">${icon("receipt")}<div><b>${analysis.lateIncomes.length} ${analysis.lateIncomes.length === 1 ? "entrada esperada está atrasada" : "entradas esperadas estão atrasadas"}</b><p>Como a data já passou e o recebimento não foi confirmado, esses valores não foram usados para cobrir as contas.</p></div></section>`
     : "";
-  return `<div class="cash-planning-page"><div class="cash-planning-page-head"><div><span class="eyebrow">PRÓXIMOS ${analysis.config.horizonDays} DIAS</span><h2>Seu dinheiro no tempo</h2><p>Projeção de ${formatFullDate(analysis.startDate)} a ${formatFullDate(analysis.endDate)}</p></div><button class="btn btn-soft" type="button" data-go="settings" data-focus="cashPlanningSettings">${icon("settings")} Ajustar planejamento</button></div>${lateIncomeAlert}<section class="cash-health-card is-${analysis.health}"><div class="cash-health-status"><span>${meta.icon}</span><div><small>${meta.label}</small><h2>${meta.title}</h2><p>${cashPlanningPrimaryText(analysis)}</p></div></div><div class="cash-health-minimum"><small>Menor saldo projetado</small><b>${money.format(analysis.minimumBalance)}</b><span>em ${formatFullDate(analysis.minimumBalanceDate)}</span></div></section><section class="cash-kpis"><article><span>${icon("wallet")}</span><div><small>Disponível hoje</small><b>${money.format(analysis.openingBalance)}</b><em>${openingCaption}</em></div></article><article><span>${icon("receipt")}</span><div><small>Até a próxima entrada</small><b>${money.format(analysis.requiredBeforeNextIncome)}</b><em>${analysis.expensesBeforeNextIncome.length} ${analysis.expensesBeforeNextIncome.length === 1 ? "conta" : "contas"}</em></div></article><article><span>${icon("trending-up")}</span><div><small>Próxima entrada</small>${nextIncomeCopy}</div></article><article><span>${icon("chart")}</span><div><small>Saldo ao fim da análise</small><b class="${analysis.projectedBalance < 0 ? "negative" : ""}">${money.format(analysis.projectedBalance)}</b><em>Reserva: ${money.format(analysis.config.minimumReserve)}</em></div></article></section><section class="cash-planning-grid"><article class="panel cash-strategy-panel"><div class="panel-head"><div><h2>Como separar cada recebimento</h2><p>Obrigações agrupadas até a entrada seguinte</p></div></div><div class="cash-cycle-list">${cycles}</div></article>${attention}</section><article class="panel cash-timeline-panel"><div class="panel-head"><div><h2>Linha do tempo do caixa</h2><p>Entradas entram primeiro; depois, as contas do mesmo dia são priorizadas.</p></div><span>${analysis.processedEvents.length} movimentos</span></div><div class="cash-timeline-start"><span>Hoje</span><b>${money.format(analysis.openingBalance)}</b></div><div class="cash-timeline">${timeline}</div></article><p class="cash-planning-note">${icon("shield")} Esta é uma projeção baseada nos lançamentos cadastrados. Reserve o dinheiro quando recebê-lo e, sem desconto, prefira agendar o pagamento para o vencimento.</p></div>`;
+  return `<div class="cash-planning-page"><div class="cash-planning-page-head"><div><span class="eyebrow">PRÓXIMOS ${analysis.config.horizonDays} DIAS</span><h2>Seu dinheiro no tempo</h2><p>Projeção de ${formatFullDate(analysis.startDate)} a ${formatFullDate(analysis.endDate)}</p></div><button class="btn btn-soft" type="button" data-go="settings" data-focus="cashPlanningSettings">${icon("settings")} Ajustar planejamento</button></div>${lateIncomeAlert}<section class="cash-health-card is-${analysis.health}"><div class="cash-health-status"><span>${meta.icon}</span><div><small>${meta.label}</small><h2>${meta.title}</h2><p>${cashPlanningPrimaryText(analysis)}</p></div></div><div class="cash-health-minimum"><small>Menor saldo projetado</small><b>${money.format(analysis.minimumBalance)}</b><span>em ${formatFullDate(analysis.minimumBalanceDate)}</span></div></section><section class="cash-kpis"><article><span>${icon("wallet")}</span><div><small>Disponível hoje</small><b>${money.format(analysis.openingBalance)}</b><em>${openingCaption}</em></div></article><article><span>${icon("receipt")}</span><div><small>Até a próxima entrada</small><b>${money.format(analysis.requiredBeforeNextIncome)}</b><em>${analysis.expensesBeforeNextIncome.length} ${analysis.expensesBeforeNextIncome.length === 1 ? "conta" : "contas"}</em></div></article><article><span>${icon("trending-up")}</span><div><small>Próxima entrada</small>${nextIncomeCopy}</div></article><article><span>${icon("chart")}</span><div><small>Saldo ao fim da análise</small><b class="${analysis.projectedBalance < 0 ? "negative" : ""}">${money.format(analysis.projectedBalance)}</b><em>Reserva: ${money.format(analysis.config.minimumReserve)}</em></div></article></section>${renderAdaptivePaymentStrategy(analysis)}<section class="cash-planning-grid"><article class="panel cash-strategy-panel"><div class="panel-head"><div><h2>Como separar cada recebimento</h2><p>Obrigações agrupadas até a entrada seguinte</p></div></div><div class="cash-cycle-list">${cycles}</div></article>${attention}</section><article class="panel cash-timeline-panel"><div class="panel-head"><div><h2>Linha do tempo do caixa</h2><p>Entradas entram primeiro; depois, as contas do mesmo dia são priorizadas.</p></div><span>${analysis.processedEvents.length} movimentos</span></div><div class="cash-timeline-start"><span>Hoje</span><b>${money.format(analysis.openingBalance)}</b></div><div class="cash-timeline">${timeline}</div></article><p class="cash-planning-note">${icon("shield")} Esta é uma projeção baseada nos lançamentos cadastrados. Reserve o dinheiro quando recebê-lo e, sem desconto, prefira agendar o pagamento para o vencimento.</p></div>`;
 }
 
 function renderDashboard(monthName) {
@@ -3058,7 +3302,7 @@ function calendarStatus(item) {
 }
 function openRecordDetails(item) {
   showModal(
-    `<article class="modal"><button class="modal-close" type="button">×</button><span class="eyebrow">SOMENTE LEITURA</span><h2>${esc(item.description)}</h2><p>${esc(categoryMeta(item))} · ${formatDate(item.dueDate)}</p><div class="summary">${categoryIconBadge(item, "summary-icon")}<div><small>Valor</small><b>${money.format(item.amount)}</b></div></div>${item.category === "Cartão" ? `<p><strong>Cartão:</strong> ${esc(cardNameFor(item))}</p>` : ""}${item.type === "expense" ? `<p><strong>Prioridade:</strong> ${priorityLabel(item)}</p>` : ""}<p><strong>Data planejada:</strong> ${formatDate(item.plannedDate)}</p><p><strong>Data real:</strong> ${formatDate(item.paidDate)}</p>${item.notes ? `<p>${esc(item.notes)}</p>` : ""}${item.attachment?.url ? `<a class="btn btn-soft" href="${attr(item.attachment.url)}" target="_blank" rel="noopener">Abrir comprovante</a>` : ""}</article>`,
+    `<article class="modal"><button class="modal-close" type="button">×</button><span class="eyebrow">SOMENTE LEITURA</span><h2>${esc(item.description)}</h2><p>${esc(categoryMeta(item))} · ${formatDate(item.dueDate)}</p><div class="summary">${categoryIconBadge(item, "summary-icon")}<div><small>Valor</small><b>${money.format(item.amount)}</b></div></div>${item.category === "Cartão" ? `<p><strong>Cartão:</strong> ${esc(cardNameFor(item))}</p>` : ""}${item.type === "expense" ? `<p><strong>Prioridade:</strong> ${priorityLabel(item)}</p>${item.allowLatePayment === true ? `<p><strong>Postergação permitida:</strong> até ${Number(item.maxDelayDays || 0)} dias · custo estimado de ${Number(item.lateFeePercent || 0).toLocaleString("pt-BR")}%</p>` : ""}` : ""}<p><strong>Data planejada:</strong> ${formatDate(item.plannedDate)}</p><p><strong>Data real:</strong> ${formatDate(item.paidDate)}</p>${item.notes ? `<p>${esc(item.notes)}</p>` : ""}${item.attachment?.url ? `<a class="btn btn-soft" href="${attr(item.attachment.url)}" target="_blank" rel="noopener">Abrir comprovante</a>` : ""}</article>`,
   );
 }
 function openSummaryModal(type) {
@@ -3365,7 +3609,7 @@ function openRecordModal(item = {}) {
       ? `<section class="recurrence-context full"><b>${item.recurrenceType === "installment" ? "Parcela" : "Despesa recorrente"} ${item.recurrenceIndex} de ${item.recurrenceTotal}</b><small>Valor, datas e descrição podem ser propagados. Pagamento e comprovante continuam individuais.</small><div class="recurrence-scope" role="radiogroup" aria-label="Alcance da alteração"><label><input type="radio" name="recurrenceScope" value="single" checked><span><b>Somente este</b><small>Os outros meses não mudam</small></span></label>${remainingOccurrences > 1 ? `<label><input type="radio" name="recurrenceScope" value="future"><span><b>Este e os próximos</b><small>${remainingOccurrences} lançamentos</small></span></label>` : ""}<label><input type="radio" name="recurrenceScope" value="all"><span><b>Toda a série</b><small>${seriesOccurrences} lançamentos</small></span></label></div></section>`
       : "";
   showModal(
-    `<form class="modal modal-large" id="recordForm"><button class="modal-close" type="button">×</button><span class="eyebrow">${item.id ? "EDITAR" : "NOVO"} LANÇAMENTO</span><h2>${item.id ? esc(item.description) : "Adicionar ao calendário"}</h2><div class="type-toggle"><label><input type="radio" name="type" value="expense" ${type === "expense" ? "checked" : ""}> Débito</label><label><input type="radio" name="type" value="income" ${type === "income" ? "checked" : ""}> Entrada</label></div><div class="form-grid"><label>Descrição<input name="description" value="${attr(baseDescription)}" required maxlength="120"></label><label>Valor<input name="amount" type="number" min="0.01" step="0.01" value="${item.amount || ""}" required></label><label>Categoria<select name="category" id="categorySelect" required></select></label><label>Data de vencimento/recebimento<input name="dueDate" type="date" value="${item.dueDate || ""}" required></label><section class="record-card-field full" id="recordCardField" hidden><div class="record-card-select-row"><label>Cartão da fatura<select name="cardId" id="recordCardSelect"></select></label><button class="btn btn-soft" id="quickAddCard" type="button">${icon("plus")} Cadastrar cartão</button></div><div id="recordCardPreview"></div></section><label>Data que deseja pagar/receber<input name="plannedDate" type="date" value="${item.plannedDate || item.dueDate || ""}"></label><label id="recordPriorityField" ${type === "income" ? "hidden" : ""}>Prioridade no planejamento<select name="priority"><option value="essential" ${priority === "essential" ? "selected" : ""}>Essencial</option><option value="important" ${priority === "important" ? "selected" : ""}>Importante</option><option value="flexible" ${priority === "flexible" ? "selected" : ""}>Flexível</option></select><small>Usada quando o dinheiro não cobre todas as contas.</small></label><label>Status<select name="status" id="status"><option value="pending" ${!paid ? "selected" : ""}>Pendente</option><option value="paid" ${paid ? "selected" : ""}>${type === "income" ? "Recebido" : "Pago"}</option></select></label><label id="paidDateLabel">Data real do pagamento/recebimento<input name="paidDate" type="date" value="${item.paidDate || ""}"></label>${recurrenceFields}<label class="full">Observações<textarea name="notes" maxlength="500">${esc(item.notes || "")}</textarea></label><label class="full file-label">Comprovante (imagem ou PDF, até 10 MB)<input name="attachment" type="file" accept="image/jpeg,image/png,image/webp,application/pdf">${item.attachment?.url ? `<a href="${attr(item.attachment.url)}" target="_blank" rel="noopener">Abrir comprovante atual: ${esc(item.attachment.name)}</a>` : ""}</label></div><div class="modal-actions">${item.id ? '<button class="btn btn-danger" type="button" id="deleteRecord">Excluir</button>' : ""}<button class="btn btn-primary" type="submit">Salvar lançamento</button></div></form>`,
+    `<form class="modal modal-large" id="recordForm"><button class="modal-close" type="button">×</button><span class="eyebrow">${item.id ? "EDITAR" : "NOVO"} LANÇAMENTO</span><h2>${item.id ? esc(item.description) : "Adicionar ao calendário"}</h2><div class="type-toggle"><label><input type="radio" name="type" value="expense" ${type === "expense" ? "checked" : ""}> Débito</label><label><input type="radio" name="type" value="income" ${type === "income" ? "checked" : ""}> Entrada</label></div><div class="form-grid"><label>Descrição<input name="description" value="${attr(baseDescription)}" required maxlength="120"></label><label>Valor<input name="amount" type="number" min="0.01" step="0.01" value="${item.amount || ""}" required></label><label>Categoria<select name="category" id="categorySelect" required></select></label><label>Data de vencimento/recebimento<input name="dueDate" type="date" value="${item.dueDate || ""}" required></label><section class="record-card-field full" id="recordCardField" hidden><div class="record-card-select-row"><label>Cartão da fatura<select name="cardId" id="recordCardSelect"></select></label><button class="btn btn-soft" id="quickAddCard" type="button">${icon("plus")} Cadastrar cartão</button></div><div id="recordCardPreview"></div></section><label>Data que deseja pagar/receber<input name="plannedDate" type="date" value="${item.plannedDate || item.dueDate || ""}"></label><label id="recordPriorityField" ${type === "income" ? "hidden" : ""}>Prioridade no planejamento<select name="priority"><option value="essential" ${priority === "essential" ? "selected" : ""}>Essencial</option><option value="important" ${priority === "important" ? "selected" : ""}>Importante</option><option value="flexible" ${priority === "flexible" ? "selected" : ""}>Flexível</option></select><small>Usada quando o dinheiro não cobre todas as contas.</small></label><section class="record-delay-field full" id="recordDelayField" ${type === "income" ? "hidden" : ""}><label class="record-delay-toggle"><input name="allowLatePayment" type="checkbox" value="true" ${item.allowLatePayment === true ? "checked" : ""}><span><b>Permitir sugestão de pagamento após o vencimento</b><small>Ative somente quando você conhecer e aceitar as consequências do atraso.</small></span></label><div class="record-delay-options" id="recordDelayOptions" ${item.allowLatePayment === true ? "" : "hidden"}><label>Limite de atraso <div><input name="maxDelayDays" type="number" min="1" max="90" step="1" value="${item.maxDelayDays || 7}" inputmode="numeric"><span>dias</span></div></label><label>Custo total estimado <div><input name="lateFeePercent" type="number" min="0" max="100" step="0.01" value="${item.lateFeePercent ?? 0}" inputmode="decimal"><span>%</span></div></label><p>${icon("shield")} Confira multa, juros, risco de suspensão do serviço e efeitos no crédito antes de permitir a postergação.</p></div></section><label>Status<select name="status" id="status"><option value="pending" ${!paid ? "selected" : ""}>Pendente</option><option value="paid" ${paid ? "selected" : ""}>${type === "income" ? "Recebido" : "Pago"}</option></select></label><label id="paidDateLabel">Data real do pagamento/recebimento<input name="paidDate" type="date" value="${item.paidDate || ""}"></label>${recurrenceFields}<label class="full">Observações<textarea name="notes" maxlength="500">${esc(item.notes || "")}</textarea></label><label class="full file-label">Comprovante (imagem ou PDF, até 10 MB)<input name="attachment" type="file" accept="image/jpeg,image/png,image/webp,application/pdf">${item.attachment?.url ? `<a href="${attr(item.attachment.url)}" target="_blank" rel="noopener">Abrir comprovante atual: ${esc(item.attachment.name)}</a>` : ""}</label></div><div class="modal-actions">${item.id ? '<button class="btn btn-danger" type="button" id="deleteRecord">Excluir</button>' : ""}<button class="btn btn-primary" type="submit">Salvar lançamento</button></div></form>`,
   );
   const form = document.querySelector("#recordForm");
   const category = form.querySelector("#categorySelect");
@@ -3374,6 +3618,9 @@ function openRecordModal(item = {}) {
   const recurrenceToggle = form.elements.recurrenceEnabled;
   const priorityField = form.querySelector("#recordPriorityField");
   const prioritySelect = form.elements.priority;
+  const delayField = form.querySelector("#recordDelayField");
+  const delayOptions = form.querySelector("#recordDelayOptions");
+  const delayToggle = form.elements.allowLatePayment;
   let priorityTouched = Boolean(item.priority);
   const submitButton = form.querySelector('button[type="submit"]');
   const updateRecurrence = () => {
@@ -3396,6 +3643,17 @@ function openRecordModal(item = {}) {
       prioritySelect.value = defaultExpensePriority(category.value);
     }
   };
+  const updateDelayOptions = () => {
+    const isExpense = form.type.value === "expense";
+    delayField.hidden = !isExpense;
+    if (!isExpense) delayToggle.checked = false;
+    const enabled = isExpense && delayToggle.checked;
+    delayOptions.hidden = !enabled;
+    form.elements.maxDelayDays.disabled = !enabled;
+    form.elements.lateFeePercent.disabled = !enabled;
+    form.elements.maxDelayDays.required = enabled;
+    form.elements.lateFeePercent.required = enabled;
+  };
   const fillCategories = () => {
     const current = category.value || item.category;
     category.innerHTML = `<option value="">Selecione uma categoria</option>${categories[form.type.value]
@@ -3405,6 +3663,7 @@ function openRecordModal(item = {}) {
       form.type.value === "income" ? "Recebido" : "Pago";
     updateRecurrence();
     updatePriority();
+    updateDelayOptions();
     refreshRecordCardField(form, item.cardId);
   };
   form
@@ -3414,6 +3673,7 @@ function openRecordModal(item = {}) {
   prioritySelect.onchange = () => {
     priorityTouched = true;
   };
+  delayToggle.onchange = updateDelayOptions;
   fillCategories();
   category.onchange = () => {
     refreshRecordCardField(form);
@@ -3443,6 +3703,30 @@ function openRecordModal(item = {}) {
         data.type === "expense"
           ? data.priority || defaultExpensePriority(data.category)
           : "";
+      const allowLatePayment =
+        data.type === "expense" && delayToggle.checked;
+      const maxDelayDays = allowLatePayment
+        ? Number(form.elements.maxDelayDays.value)
+        : 0;
+      const lateFeePercent = allowLatePayment
+        ? Number(form.elements.lateFeePercent.value)
+        : 0;
+      if (
+        allowLatePayment &&
+        (!Number.isInteger(maxDelayDays) ||
+          maxDelayDays < 1 ||
+          maxDelayDays > 90 ||
+          !Number.isFinite(lateFeePercent) ||
+          lateFeePercent < 0 ||
+          lateFeePercent > 100)
+      ) {
+        toast("Revise o limite e o custo estimado do atraso.", "danger");
+        busy(button, false);
+        return;
+      }
+      data.allowLatePayment = allowLatePayment;
+      data.maxDelayDays = maxDelayDays;
+      data.lateFeePercent = lateFeePercent;
       delete data.recurrenceEnabled;
       delete data.recurrenceMonths;
       delete data.recurrenceType;
