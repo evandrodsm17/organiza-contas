@@ -734,7 +734,7 @@ aside {
   color: var(--green);
 }
 .day > small {
-  font-size: 9px;
+  font-size: 10px;
   color: var(--muted);
 }
 .empty-state {
@@ -945,7 +945,7 @@ aside {
     width: auto;
     flex-direction: column;
     gap: 2px;
-    font-size: 9px;
+    font-size: 10px;
     padding: 6px 10px;
   }
   .nav-item span {
@@ -1144,7 +1144,7 @@ aside {
   border-radius: 50%;
   background: #3d7ca6;
   color: white;
-  font-size: 9px;
+  font-size: 10px;
   font-style: normal;
 }
 
@@ -1738,7 +1738,7 @@ textarea {
 
 .calendar-date-range-copy small {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.35;
 }
 
@@ -1773,7 +1773,7 @@ textarea {
 
 .calendar-date-inputs label > span {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -1803,7 +1803,7 @@ textarea {
 
 .calendar-custom-period small {
   color: var(--status-info);
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.08em;
 }
@@ -1900,7 +1900,7 @@ textarea {
 .period-payment-main small,
 .period-payment-metrics small {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .period-payment-metrics {
@@ -1963,7 +1963,7 @@ textarea {
 .period-payment-progress small {
   flex: 0 0 auto;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 html[data-theme="dark"] .calendar-date-range,
@@ -2192,7 +2192,7 @@ html[data-theme="dark"] .calendar-custom-period button {
 
 .pending-payment-copy > small {
   color: var(--status-warning);
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 750;
   letter-spacing: 0.08em;
 }
@@ -2209,7 +2209,7 @@ html[data-theme="dark"] .calendar-custom-period button {
 .pending-payment-copy p {
   margin: 0;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.45;
 }
 
@@ -2222,7 +2222,7 @@ html[data-theme="dark"] .calendar-custom-period button {
 .pending-payment-total small,
 .pending-payment-total span {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .pending-payment-total b {
@@ -2243,7 +2243,7 @@ html[data-theme="dark"] .calendar-custom-period button {
   justify-content: space-between;
   gap: 8px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .pending-payment-progress > i {
@@ -2282,7 +2282,7 @@ html[data-theme="dark"] .calendar-custom-period button {
   border-radius: 10px;
   background: var(--surface);
   color: var(--ink);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -2551,7 +2551,7 @@ html:not([data-theme="dark"]) :is(
   width: 100%;
   margin-bottom: 2px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 750;
   letter-spacing: 0.08em;
 }
@@ -2562,7 +2562,7 @@ html:not([data-theme="dark"]) :is(
   border-radius: 9px;
   background: transparent;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   text-align: left;
 }
 
@@ -2595,7 +2595,7 @@ html:not([data-theme="dark"]) :is(
   gap: 7px;
   margin-top: 17px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 10px;
   line-height: 1.5;
 }
 
@@ -2750,7 +2750,7 @@ html[data-theme="dark"] .voice-orb {
 
 .settings-session-profile small {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .settings-logout-button {
@@ -2900,7 +2900,7 @@ html[data-theme="dark"] {
   top: 6px;
   z-index: 1;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -3075,7 +3075,7 @@ html[data-theme="dark"] .auth-backdrop {
     height: 20px;
   }
   .nav-item small {
-    font-size: 9px;
+    font-size: 10px;
     white-space: nowrap;
   }
   .mobile-nav-logout {
@@ -3103,7 +3103,7 @@ html[data-theme="dark"] .auth-backdrop {
     height: 23px;
   }
   .mobile-new-record small {
-    font-size: 8px;
+    font-size: 10px;
     font-weight: 600;
   }
   .mobile-new-record:disabled {
@@ -3179,7 +3179,7 @@ html[data-theme="dark"] .auth-backdrop {
     width: 100% !important;
   }
   .nav-item small {
-    font-size: 8px;
+    font-size: 10px;
   }
   .mobile-new-record {
     width: 56px;
@@ -3725,7 +3725,7 @@ html[data-theme="dark"] .day-item.income-received {
     justify-self: end;
     min-width: 0;
     padding: 3px 7px;
-    font-size: 9px;
+    font-size: 10px;
   }
   .record-row > .pill::before {
     width: 5px;
@@ -3905,7 +3905,7 @@ html[data-theme="dark"] .recurrence-options {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.2;
   opacity: 0.86;
 }
@@ -4265,7 +4265,7 @@ html[data-theme="dark"] .today-alert-item:hover {
     justify-self: end;
     min-width: 0;
     padding: 3px 7px;
-    font-size: 9px;
+    font-size: 10px;
   }
 }
 
@@ -4364,7 +4364,7 @@ html[data-theme="dark"] .today-alert-item:hover {
   display: flex;
   justify-content: space-between;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .budget-score-status {
@@ -4422,7 +4422,7 @@ html[data-theme="dark"] .today-alert-item:hover {
   border-radius: 10px;
   background: var(--surface-soft);
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .budget-score-values b {
@@ -4460,7 +4460,7 @@ html[data-theme="dark"] .today-alert-item:hover {
 .budget-empty-indicator small,
 .budget-score-empty > p {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .budget-score-empty > p {
@@ -4505,7 +4505,7 @@ html[data-theme="dark"] .today-alert-item:hover {
   width: 170px;
   margin: 0 0 0 auto;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .settings-month input {
@@ -4689,7 +4689,7 @@ html[data-theme="dark"] .today-alert-item:hover {
 .theme-options small {
   overflow: hidden;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -5020,7 +5020,7 @@ html[data-theme="dark"] .theme-options button.active {
 }
 
 .recurrence-scope label > span > small {
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.25;
 }
 
@@ -5089,7 +5089,7 @@ html[data-theme="dark"] .recurrence-scope label {
   }
 
   .agenda-item .pill {
-    font-size: 8px;
+    font-size: 10px;
   }
 
   .recurrence-scope {
@@ -5358,7 +5358,7 @@ html[data-theme="dark"] .logout-confirm-modal .btn-danger {
 
 .calendar-filter-fields > label > span {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -5489,7 +5489,7 @@ html[data-theme="dark"] .logout-confirm-modal .btn-danger {
 
 .expense-insights-head small {
   color: #3157d5;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 750;
   letter-spacing: 0.08em;
 }
@@ -5516,7 +5516,7 @@ html[data-theme="dark"] .logout-confirm-modal .btn-danger {
   border-radius: 999px;
   background: var(--surface-soft);
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 650;
 }
 
@@ -5577,7 +5577,7 @@ html[data-theme="dark"] .logout-confirm-modal .btn-danger {
 
 .expense-insights-narrative small {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .expense-category-ranking {
@@ -5657,7 +5657,7 @@ html[data-theme="dark"] .logout-confirm-modal .btn-danger {
 .expense-category-copy small,
 .expense-category-row > strong small {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 500;
 }
 
@@ -5687,7 +5687,7 @@ html[data-theme="dark"] .logout-confirm-modal .btn-danger {
 .expense-category-more {
   padding: 9px 8px 0;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   text-align: right;
 }
 
@@ -5972,7 +5972,7 @@ html[data-theme="dark"] .expense-insights-head small {
 
 .payment-card-bottom small {
   opacity: 0.72;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.04em;
 }
@@ -6014,7 +6014,7 @@ html[data-theme="dark"] .expense-insights-head small {
 
 .managed-card-meta > span small {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .managed-card-meta > div {
@@ -6031,7 +6031,7 @@ html[data-theme="dark"] .expense-insights-head small {
   border-radius: 7px;
   background: transparent;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
 }
 
@@ -6118,7 +6118,7 @@ html[data-theme="dark"] .expense-insights-head small {
 
 .card-editor-fields label > small {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 500;
 }
 
@@ -6187,7 +6187,7 @@ html[data-theme="dark"] .expense-insights-head small {
   display: block;
   margin-bottom: 12px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.08em;
 }
@@ -6195,7 +6195,7 @@ html[data-theme="dark"] .expense-insights-head small {
 .card-editor-preview > p {
   margin: 11px 3px 0;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.5;
 }
 
@@ -6265,7 +6265,7 @@ html[data-theme="dark"] .expense-insights-head small {
 }
 
 .record-card-empty small {
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.4;
 }
 
@@ -6447,7 +6447,7 @@ html[data-theme="dark"] .expense-insights-head small {
 
 .cash-planning-teaser small {
   color: var(--status-info);
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.08em;
 }
@@ -6473,7 +6473,7 @@ html[data-theme="dark"] .expense-insights-head small {
   max-width: 820px;
   margin: 0;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.45;
 }
 
@@ -6520,7 +6520,7 @@ html[data-theme="dark"] .expense-insights-head small {
 
 .cash-planning-settings-fields label > small {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 450;
   line-height: 1.35;
 }
@@ -6537,7 +6537,7 @@ html[data-theme="dark"] .expense-insights-head small {
 .cash-planning-settings-actions > span {
   margin-right: auto;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .cash-planning-settings-actions > span b {
@@ -6547,7 +6547,7 @@ html[data-theme="dark"] .expense-insights-head small {
 #recordPriorityField > small {
   margin-top: -2px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 450;
   line-height: 1.35;
 }
@@ -6583,7 +6583,7 @@ html[data-theme="dark"] .expense-insights-head small {
 
 .cash-planning-empty > small {
   color: var(--status-info);
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.1em;
 }
@@ -6623,7 +6623,7 @@ html[data-theme="dark"] .expense-insights-head small {
 .cash-planning-page-head p {
   margin: 0;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .cash-planning-page-head .btn {
@@ -6661,7 +6661,7 @@ html[data-theme="dark"] .expense-insights-head small {
 .cash-late-income-alert p {
   margin: 2px 0 0;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.45;
 }
 
@@ -6737,7 +6737,7 @@ html[data-theme="dark"] .expense-insights-head small {
 
 .cash-health-status small {
   color: var(--status-success);
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -6760,7 +6760,7 @@ html[data-theme="dark"] .expense-insights-head small {
   max-width: 790px;
   margin: 0;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.55;
 }
 
@@ -6778,7 +6778,7 @@ html[data-theme="dark"] .expense-insights-head small {
 .cash-health-minimum small,
 .cash-health-minimum span {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .cash-health-minimum b {
@@ -6836,7 +6836,7 @@ html[data-theme="dark"] .expense-insights-head small {
 .cash-kpis em {
   overflow: hidden;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 10px;
   font-style: normal;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -6912,7 +6912,7 @@ html[data-theme="dark"] .expense-insights-head small {
   display: block;
   overflow: hidden;
   color: var(--muted);
-  font-size: 7px;
+  font-size: 10px;
   font-weight: 750;
   letter-spacing: 0.04em;
   text-overflow: ellipsis;
@@ -6936,7 +6936,7 @@ html[data-theme="dark"] .expense-insights-head small {
 .cash-cycle > p {
   margin: 12px 0;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.5;
 }
 
@@ -6967,7 +6967,7 @@ html[data-theme="dark"] .expense-insights-head small {
 
 .cash-cycle-result small {
   color: var(--muted);
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .cash-cycle-result b {
@@ -6986,7 +6986,7 @@ html[data-theme="dark"] .expense-insights-head small {
   border: 1px dashed var(--line);
   border-radius: 13px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.5;
   text-align: center;
 }
@@ -7052,7 +7052,7 @@ html[data-theme="dark"] .expense-insights-head small {
 
 .cash-attention-list button > span small {
   color: var(--muted);
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .cash-attention-list button > strong {
@@ -7068,7 +7068,7 @@ html[data-theme="dark"] .expense-insights-head small {
   border-radius: 999px;
   background: var(--status-warning-bg);
   color: var(--status-warning);
-  font-size: 7px;
+  font-size: 10px;
   font-style: normal;
   font-weight: 750;
 }
@@ -7107,13 +7107,13 @@ html[data-theme="dark"] .expense-insights-head small {
   max-width: 330px;
   margin: 0;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.5;
 }
 
 .cash-timeline-panel > .panel-head > span {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .cash-timeline-start {
@@ -7128,7 +7128,7 @@ html[data-theme="dark"] .expense-insights-head small {
 
 .cash-timeline-start span {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
 }
 
@@ -7207,7 +7207,7 @@ html[data-theme="dark"] .expense-insights-head small {
 .cash-timeline-value small {
   overflow: hidden;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -7228,7 +7228,7 @@ html[data-theme="dark"] .expense-insights-head small {
   border-radius: 999px;
   background: var(--status-success-bg);
   color: var(--status-success);
-  font-size: 7px;
+  font-size: 10px;
   font-weight: 750;
   white-space: nowrap;
 }
@@ -7256,7 +7256,7 @@ html[data-theme="dark"] .expense-insights-head small {
   margin: 0;
   padding: 0 4px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 10px;
   line-height: 1.5;
 }
 
@@ -7536,7 +7536,7 @@ html[data-theme="dark"] .cash-planning-page-head .btn-soft {
 
 .record-delay-toggle small {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   line-height: 1.45;
 }
@@ -7588,7 +7588,7 @@ html[data-theme="dark"] .cash-planning-page-head .btn-soft {
   gap: 7px;
   margin: 1px 0 0;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.5;
 }
 
@@ -7636,7 +7636,7 @@ html[data-theme="dark"] .cash-planning-page-head .btn-soft {
 .cash-adaptive-panel.is-empty > div > small,
 .cash-adaptive-head > div > small {
   color: var(--status-info);
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.08em;
 }
@@ -7652,7 +7652,7 @@ html[data-theme="dark"] .cash-planning-page-head .btn-soft {
   max-width: 800px;
   margin: 0;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.5;
 }
 
@@ -7692,7 +7692,7 @@ html[data-theme="dark"] .cash-planning-page-head .btn-soft {
 .cash-adaptive-comparison small,
 .cash-adaptive-comparison em {
   overflow: hidden;
-  font-size: 8px;
+  font-size: 10px;
   font-style: normal;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -7774,7 +7774,7 @@ html[data-theme="dark"] .cash-planning-page-head .btn-soft {
 .cash-deferral-value small {
   overflow: hidden;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 10px;
   font-style: normal;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -7815,7 +7815,7 @@ html[data-theme="dark"] .cash-planning-page-head .btn-soft {
 .cash-adaptive-warning p {
   margin: 0;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 10px;
   line-height: 1.55;
 }
 
