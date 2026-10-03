@@ -5,3 +5,13 @@ firebase-debug.log*
 assets/js/firebase-config.local.js
 .DS_Store
 Thumbs.db
+node_modules/
+.env
+.env.*
+!.env.example
+data/
+backups/
+migration-export/
+.deployment/
+*.sqlite*
+*service-account*.json

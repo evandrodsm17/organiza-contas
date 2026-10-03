@@ -1,4 +1,4 @@
-import { FirebaseService } from "./firebase-service.js";
+import { ApiService } from "./api-service.js";
 
 const app = document.querySelector("#app");
 const toastArea = document.querySelector("#toastArea");
@@ -427,7 +427,7 @@ function categoryIconBadge(item, baseClass = "cat-icon") {
   return `<span class="${baseClass} ${tone}" title="${attr(label)}" aria-hidden="true">${icon(categoryIconName(item))}</span>`;
 }
 
-FirebaseService.observeAuth(async (user) => {
+ApiService.observeAuth(async (user) => {
   cleanupObservers();
   state.user = user;
   if (!user) {
@@ -440,7 +440,7 @@ FirebaseService.observeAuth(async (user) => {
     return;
   }
   try {
-    state.profile = await FirebaseService.profile(user.uid);
+    state.profile = await ApiService.profile(user.uid);
     if (!state.profile?.active)
       throw new Error(
         "Seu acesso está inativo ou ainda não foi autorizado pelo master.",
@@ -448,7 +448,7 @@ FirebaseService.observeAuth(async (user) => {
     observeManagements();
   } catch (error) {
     toast(error.message, "danger");
-    await FirebaseService.logout();
+    await ApiService.logout();
   }
 });
 
@@ -488,28 +488,28 @@ function bindLogin() {
     button.disabled = true;
     button.textContent = "Conectando...";
     try {
-      await FirebaseService.loginWithGoogle();
+      await ApiService.loginWithGoogle();
     } catch (error) {
       if (error.code !== "auth/popup-closed-by-user")
         toast(
           error.code === "auth/operation-not-allowed"
-            ? "Ative o provedor Google no Firebase Authentication."
-            : "Não foi possível entrar com Google.",
+            ? "Login Google não configurado. Use e-mail e senha."
+            : error.message || "Não foi possível entrar com Google.",
           "danger",
         );
       button.disabled = false;
       button.innerHTML = original;
     }
   };
-  if (!FirebaseService.isConfigured())
+  if (!ApiService.isConfigured())
     document.querySelector("#configHint").textContent =
-      "Firebase ainda não configurado. Consulte FIREBASE_SETUP.md.";
+      "Servidor indisponível. Tente novamente em instantes.";
   form.onsubmit = async (event) => {
     event.preventDefault();
     const button = form.querySelector("button[type=submit]");
     busy(button, true);
     try {
-      await FirebaseService.login(form.email.value, form.password.value);
+      await ApiService.login(form.email.value, form.password.value);
     } catch {
       toast("E-mail ou senha inválidos.", "danger");
       busy(button, false);
@@ -518,7 +518,7 @@ function bindLogin() {
 }
 
 function observeManagements() {
-  stopManagements = FirebaseService.observeManagements(
+  stopManagements = ApiService.observeManagements(
     state.user.uid,
     (items) => {
       state.managements = items;
@@ -528,20 +528,20 @@ function observeManagements() {
       if (state.selected?.id !== selectedId) observeSelectedManagement();
       renderApp();
     },
-    firebaseError,
+    serviceError,
   );
 }
 function observeTransactions() {
   stopTransactions();
   state.transactions = [];
   if (!state.selected) return;
-  stopTransactions = FirebaseService.observeTransactions(
+  stopTransactions = ApiService.observeTransactions(
     state.selected.id,
     (items) => {
       state.transactions = items;
       renderApp();
     },
-    firebaseError,
+    serviceError,
   );
 }
 
@@ -549,7 +549,7 @@ function observeCards() {
   stopCards();
   state.cards = [];
   if (!state.selected) return;
-  stopCards = FirebaseService.observeCards(
+  stopCards = ApiService.observeCards(
     state.selected.id,
     (items) => {
       state.cards = items;
@@ -557,7 +557,7 @@ function observeCards() {
       if (recordForm) refreshRecordCardField(recordForm);
       else renderApp();
     },
-    firebaseError,
+    serviceError,
   );
 }
 
@@ -1807,7 +1807,7 @@ function bindShell() {
           return;
         busy(button, true);
         try {
-          await FirebaseService.setCardActive(
+          await ApiService.setCardActive(
             state.selected.id,
             card.id,
             activate,
@@ -1815,7 +1815,7 @@ function bindShell() {
           );
           toast(activate ? "Cartão reativado." : "Cartão arquivado.");
         } catch (error) {
-          firebaseError(error);
+          serviceError(error);
           busy(button, false);
         }
       }),
@@ -1856,7 +1856,7 @@ function bindShell() {
       }
       busy(button, true);
       try {
-        await FirebaseService.setCashPlanning(state.selected.id, {
+        await ApiService.setCashPlanning(state.selected.id, {
           currentBalance,
           minimumReserve,
           horizonDays: Number(cashPlanningForm.horizonDays.value),
@@ -1864,7 +1864,7 @@ function bindShell() {
         });
         toast("Planejamento de caixa atualizado.");
       } catch (error) {
-        firebaseError(error);
+        serviceError(error);
         busy(button, false);
       }
     };
@@ -1881,14 +1881,14 @@ function bindShell() {
       }
       busy(button, true);
       try {
-        await FirebaseService.setMonthlyExpenseLimit(
+        await ApiService.setMonthlyExpenseLimit(
           state.selected.id,
           state.month,
           limit,
         );
         toast("Limite mensal atualizado.");
       } catch (error) {
-        firebaseError(error);
+        serviceError(error);
         busy(button, false);
       }
     };
@@ -1899,14 +1899,14 @@ function bindShell() {
       const button = event.currentTarget;
       busy(button, true);
       try {
-        await FirebaseService.setMonthlyExpenseLimit(
+        await ApiService.setMonthlyExpenseLimit(
           state.selected.id,
           state.month,
           null,
         );
         toast("Limite mensal removido.");
       } catch (error) {
-        firebaseError(error);
+        serviceError(error);
         busy(button, false);
       }
     });
@@ -2033,13 +2033,13 @@ function bindShell() {
     (input) =>
       (input.onchange = async () => {
         try {
-          await FirebaseService.setUserAccess(input.dataset.access, {
+          await ApiService.setUserAccess(input.dataset.access, {
             [input.dataset.field]: input.checked,
           });
           toast("Permissão atualizada.");
         } catch (e) {
           input.checked = !input.checked;
-          firebaseError(e);
+          serviceError(e);
         }
       }),
   );
@@ -2637,9 +2637,9 @@ async function saveVoiceTransaction(
   id = "",
   successMessage = "Lançamento salvo.",
 ) {
-  updateVoiceAssistant("Salvando o lançamento no Firebase...", data.description);
+  updateVoiceAssistant("Salvando o lançamento...", data.description);
   try {
-    await FirebaseService.saveTransaction(
+    await ApiService.saveTransaction(
       state.selected.id,
       data,
       state.user.uid,
@@ -2657,7 +2657,7 @@ async function saveVoiceTransaction(
       "Não consegui salvar o lançamento. Confira sua conexão e tente novamente.",
       data.description,
     );
-    firebaseError(error);
+    serviceError(error);
     return false;
   }
 }
@@ -3269,10 +3269,10 @@ function executeVoiceCommand(transcript) {
 function observeUsers() {
   if (state.profile.role !== "master") return;
   stopUsers();
-  stopUsers = FirebaseService.observeUsers((users) => {
+  stopUsers = ApiService.observeUsers((users) => {
     state.users = users;
     if (state.view === "users") renderApp();
-  }, firebaseError);
+  }, serviceError);
 }
 function currentRole() {
   return state.selected?.memberRoles?.[state.user?.uid];
@@ -3377,15 +3377,15 @@ function openManagementModal(item = null) {
     try {
       const data = Object.fromEntries(new FormData(form));
       if (editing)
-        await FirebaseService.updateManagement(item.id, {
+        await ApiService.updateManagement(item.id, {
           name: data.name.trim(),
           description: data.description.trim(),
         });
-      else await FirebaseService.createManagement(data, state.user);
+      else await ApiService.createManagement(data, state.user);
       closeModal();
       toast(editing ? "Gerenciamento atualizado." : "Gerenciamento criado.");
     } catch (err) {
-      firebaseError(err);
+      serviceError(err);
       busy(button, false);
     }
   };
@@ -3398,14 +3398,14 @@ function openShareModal() {
   form.onsubmit = async (e) => {
     e.preventDefault();
     try {
-      await FirebaseService.shareManagement({
+      await ApiService.shareManagement({
         managementId: state.selected.id,
         ...Object.fromEntries(new FormData(form)),
       });
       closeModal();
       toast("Gerenciamento compartilhado.");
     } catch (err) {
-      firebaseError(err);
+      serviceError(err);
     }
   };
 }
@@ -3419,11 +3419,11 @@ function openUserModal() {
     const data = Object.fromEntries(new FormData(form));
     data.canCreateManagement = form.canCreateManagement.checked;
     try {
-      await FirebaseService.createManagedUser(data);
+      await ApiService.createManagedUser(data);
       closeModal();
       toast("Usuário criado com sucesso.");
     } catch (err) {
-      firebaseError(err);
+      serviceError(err);
     }
   };
 }
@@ -3501,7 +3501,7 @@ function openCardModal(item = null, onSaved = null) {
     data.active = item?.active !== false;
     busy(button, true);
     try {
-      const cardRef = await FirebaseService.saveCard(
+      const cardRef = await ApiService.saveCard(
         state.selected.id,
         data,
         state.user.uid,
@@ -3517,7 +3517,7 @@ function openCardModal(item = null, onSaved = null) {
       else renderApp();
       toast(editing ? "Cartão atualizado." : "Cartão adicionado.");
     } catch (error) {
-      firebaseError(error);
+      serviceError(error);
       busy(button, false);
     }
   };
@@ -3746,14 +3746,14 @@ function openRecordModal(item = {}) {
         data.cardSnapshot = null;
       }
       if (form.attachment.files[0])
-        data.attachment = await FirebaseService.uploadAttachment(
+        data.attachment = await ApiService.uploadAttachment(
           state.selected.id,
           form.attachment.files[0],
           state.user.uid,
         );
       else data.attachment = item.attachment || null;
       if (recurring)
-        await FirebaseService.saveRecurringTransactions(
+        await ApiService.saveRecurringTransactions(
           state.selected.id,
           data,
           state.user.uid,
@@ -3761,7 +3761,7 @@ function openRecordModal(item = {}) {
           recurrenceType,
         );
       else if (isRecurring && recurrenceScope !== "single")
-        await FirebaseService.updateRecurringTransactions(
+        await ApiService.updateRecurringTransactions(
           state.selected.id,
           item,
           data,
@@ -3776,7 +3776,7 @@ function openRecordModal(item = {}) {
             item,
           );
         }
-        await FirebaseService.saveTransaction(
+        await ApiService.saveTransaction(
           state.selected.id,
           data,
           state.user.uid,
@@ -3798,7 +3798,7 @@ function openRecordModal(item = {}) {
             : "Lançamento salvo.",
       );
     } catch (err) {
-      firebaseError(err);
+      serviceError(err);
       busy(button, false);
     }
   };
@@ -3822,7 +3822,7 @@ function openRecordModal(item = {}) {
       try {
         let attachmentPaths = [item.attachment?.path].filter(Boolean);
         if (isRecurring && scope !== "single") {
-          const result = await FirebaseService.deleteRecurringTransactions(
+          const result = await ApiService.deleteRecurringTransactions(
             state.selected.id,
             item,
             scope,
@@ -3830,10 +3830,10 @@ function openRecordModal(item = {}) {
           attachmentPaths = result.attachmentPaths;
           count = result.count;
         } else {
-          await FirebaseService.deleteTransaction(state.selected.id, item.id);
+          await ApiService.deleteTransaction(state.selected.id, item.id);
         }
         Promise.allSettled(
-          attachmentPaths.map((path) => FirebaseService.deleteAttachment(path)),
+          attachmentPaths.map((path) => ApiService.deleteAttachment(path)),
         );
         closeModal();
         toast(
@@ -3842,7 +3842,7 @@ function openRecordModal(item = {}) {
             : "Lançamento excluído.",
         );
       } catch (err) {
-        firebaseError(err);
+        serviceError(err);
         busy(button, false);
       }
     });
@@ -3859,9 +3859,9 @@ function openLogoutModal() {
     const button = event.currentTarget;
     busy(button, true);
     try {
-      await FirebaseService.logout();
+      await ApiService.logout();
     } catch (error) {
-      firebaseError(error);
+      serviceError(error);
       busy(button, false);
     }
   };
@@ -3892,7 +3892,7 @@ function toast(message, type = "success") {
   toastArea.append(el);
   setTimeout(() => el.remove(), 4000);
 }
-function firebaseError(error) {
+function serviceError(error) {
   console.error(error);
   toast(error?.message || "Não foi possível concluir a operação.", "danger");
 }

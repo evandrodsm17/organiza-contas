@@ -1,0 +1,12 @@
+{
+  "name": "organiza-contas",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24.13.0" },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server/index.mjs",
+    "test": "node --test",
+    "admin": "node --env-file-if-exists=.env server/admin.mjs"
+  }
+}

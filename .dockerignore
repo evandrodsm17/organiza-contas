@@ -1,0 +1,10 @@
+*
+!package.json
+!server/
+!server/**
+!assets/
+!assets/**
+!index.html
+!favicon.ico
+!site.webmanifest
+assets/js/firebase-*.js

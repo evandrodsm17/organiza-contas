@@ -1,0 +1,11 @@
+import { applicationDefault } from 'firebase-admin/app';
+import { readFile, writeFile } from 'node:fs/promises';
+const credential = applicationDefault();
+const serviceAccount = JSON.parse(await readFile(process.env.GOOGLE_APPLICATION_CREDENTIALS, 'utf8'));
+const token = (await credential.getAccessToken()).access_token;
+const response = await fetch(`https://identitytoolkit.googleapis.com/admin/v2/projects/${encodeURIComponent(serviceAccount.project_id)}/defaultSupportedIdpConfigs/google.com`,{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(30000)});
+if (!response.ok) throw new Error(`Leitura do cliente Google falhou: HTTP ${response.status}.`);
+const data = await response.json();
+if (!data.clientId || !data.clientSecret) throw new Error('O provedor não disponibilizou o cliente OAuth. Configure um cliente Web no Google Cloud.');
+await writeFile(process.argv[2],JSON.stringify({clientId:data.clientId,clientSecret:data.clientSecret}),{flag:'wx',mode:0o600});
+console.log(JSON.stringify({enabled:data.enabled,clientId:data.clientId,secretSaved:true}));

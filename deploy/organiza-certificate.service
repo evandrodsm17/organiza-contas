@@ -1,0 +1,8 @@
+[Unit]
+Description=Renovacao TLS do Organiza Contas
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/organiza-contas/deploy/renew-certificate.sh

@@ -1,5 +1,7 @@
 # Configuração do OrganizaContas no Firebase
 
+> Documento histórico da versão anterior. A produção foi migrada para a VPS em 03/10/2026. O Firestore antigo está somente leitura; não republique estas regras nem reative escritas sem reconciliar os dados com a VPS. Consulte [o registro da migração](deploy/MIGRACAO-2026-10-03.md).
+
 A interface usa HTML, CSS e JavaScript puro. Authentication e Firestore são acessados pelo SDK CDN. A criação de contas usa uma segunda sessão isolada do Authentication para não desconectar o master.
 
 ## Recursos implementados

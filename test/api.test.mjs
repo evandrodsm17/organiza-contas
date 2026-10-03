@@ -1,0 +1,116 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, rm, mkdir, writeFile, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createHash } from 'node:crypto';
+import { createApp } from '../server/app.mjs';
+import { hashPassword, openStore } from '../server/store.mjs';
+import { importExport } from '../server/import.mjs';
+import { shiftDateByMonths } from '../server/domain.mjs';
+
+test('API: sessões, isolamento, permissões, recorrências e comprovantes', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'organiza-test-'));
+  const app = await createApp({ dataDir: directory, origin: 'http://localhost:3000' });
+  await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
+  t.after(async () => { await app.close(); await rm(directory, { recursive: true, force: true }); });
+  const base = `http://127.0.0.1:${app.server.address().port}`;
+  const password = await hashPassword('test-password-123');
+  for (const [id, role, canCreateManagement] of [['master','master',true],['owner','user',true],['editor','user',false],['viewer','user',false],['outsider','user',true]]) {
+    app.store.db.prepare('INSERT INTO users(id,email,password,data) VALUES (?,?,?,?)').run(id, `${id}@example.com`, password, JSON.stringify({ name: id, email: `${id}@example.com`, role, active: true, canCreateManagement }));
+  }
+  const cookies = {};
+  async function call(actor, path, method = 'GET', data, headers = {}) {
+    const response = await fetch(base + path, { method, headers: { Origin: 'http://localhost:3000', 'X-Organiza-Request': '1', Cookie: cookies[actor] || '', ...(data ? { 'Content-Type': 'application/json' } : {}), ...headers }, body: data === undefined ? undefined : Buffer.isBuffer(data) ? data : JSON.stringify(data) });
+    const cookie = response.headers.get('set-cookie'); if (cookie) cookies[actor] = cookie.split(';')[0];
+    const bytes = await response.arrayBuffer();
+    const value = response.headers.get('content-type')?.includes('json') ? JSON.parse(Buffer.from(bytes).toString()) : Buffer.from(bytes);
+    return { status: response.status, data: value };
+  }
+  assert.equal((await call('anon','/api/managements')).status, 401);
+  assert.equal((await call('anon','/api/auth/login','POST',{email:'owner@example.com',password:'wrong'})).status, 401);
+  for (const id of ['master','owner','editor','viewer','outsider']) assert.equal((await call(id,'/api/auth/login','POST',{email:`${id}@example.com`, password:'test-password-123'})).status, 200);
+  assert.equal((await call('owner','/api/users')).status, 403);
+  assert.equal((await call('master','/api/users')).data.length, 5);
+  assert.equal((await call('owner','/api/users/master','PATCH',{role:'master'})).status, 403);
+  assert.equal((await call('master','/api/users/master','PATCH',{active:false})).status, 400);
+  assert.equal((await call('editor','/api/managements','POST',{name:'Forbidden'})).status, 403);
+  const created = await call('owner','/api/managements','POST',{name:'Casa',description:''});
+  assert.equal(created.status, 201); const mid = created.data.id; const path = `/api/managements/${mid}`;
+  assert.equal((await call('outsider',`${path}/transactions`)).status, 404);
+  assert.equal((await call('owner',`${path}/share`,'POST',{email:'viewer@example.com',role:'viewer'})).status, 200);
+  assert.equal((await call('owner',`${path}/share`,'POST',{email:'editor@example.com',role:'editor'})).status, 200);
+  assert.equal((await call('editor',`${path}/share`,'POST',{email:'outsider@example.com',role:'editor'})).status, 403);
+  const tx = { type:'expense', status:'pending', description:'Internet', amount:100, category:'Internet', dueDate:'2026-01-31', plannedDate:'2026-01-31', paidDate:'', notes:'' };
+  assert.equal((await call('viewer',`${path}/transactions`,'POST',tx)).status, 403);
+  assert.equal((await call('editor',`${path}/transactions`,'POST',{...tx, amount:-1})).status, 400);
+  assert.equal((await call('editor',`${path}/transactions`,'POST',{...tx, dueDate:'2026-02-30'})).status, 400);
+  assert.equal((await call('editor',`${path}/transactions`,'POST',tx,{Origin:'https://evil.example'})).status, 403);
+  const recurring = await call('editor',`${path}/transactions/recurring`,'POST',{data:tx,months:3,recurrenceType:'installment'});
+  assert.equal(recurring.status, 200); assert.equal(recurring.data.count, 3);
+  const records = (await call('viewer',`${path}/transactions`)).data;
+  assert.deepEqual(records.map(r=>r.dueDate), ['2026-01-31','2026-02-28','2026-03-31']);
+  assert.equal(records[2].description, 'Internet (3/3)');
+  const update = await call('editor',`${path}/transactions/${records[1].id}/series`,'PATCH',{scope:'future',data:{...tx,dueDate:'2026-02-28',plannedDate:'2026-02-28',description:'Nova',amount:150,status:'paid',paidDate:'2026-02-20'}});
+  assert.equal(update.data.count, 2);
+  const updated = (await call('viewer',`${path}/transactions`)).data;
+  assert.equal(updated[0].amount,100); assert.equal(updated[1].status,'paid'); assert.equal(updated[2].status,'pending'); assert.equal(updated[2].dueDate,'2026-03-31');
+  const pdf = Buffer.from('%PDF-1.4\nexample');
+  const attachment = await call('editor',`${path}/attachments`,'POST',pdf,{'Content-Type':'application/pdf','X-File-Name':'recibo.pdf'});
+  assert.equal(attachment.status,201);
+  assert.equal((await call('outsider',attachment.data.url)).status,404);
+  assert.deepEqual((await call('viewer',attachment.data.url)).data,pdf);
+  assert.equal((await call('editor',`${path}/attachments`,'POST',Buffer.from('<script/>'),{'Content-Type':'image/png'})).status,400);
+  const attached = await call('editor',`${path}/transactions`,'POST',{...tx,attachment:attachment.data,createdBy:'master'});
+  assert.equal(attached.status,201);
+  assert.equal(app.store.record(mid,'transactions',attached.data.id).createdBy,'editor');
+  assert.equal((await call('editor',attachment.data.url,'DELETE')).status,409);
+  assert.equal((await call('editor',`${path}/transactions/${attached.data.id}`,'DELETE')).status,200);
+  assert.equal((await call('editor',attachment.data.url,'DELETE')).status,200);
+  const card = await call('editor',`${path}/cards`,'POST',{name:'Banco',holderName:'Titular',backgroundColor:'#ffffff',closingDay:10,dueDay:15});
+  assert.equal(card.status,201);
+  assert.equal((await call('editor',`${path}/cards/${card.data.id}`,'PATCH',{active:false})).status,200);
+  assert.equal((await call('editor',`${path}/cards/${card.data.id}`,'DELETE')).status,404);
+  assert.equal((await call('owner',path,'PATCH',{ownerId:'outsider',memberIds:['outsider'],name:'Casa atualizada'})).status,200);
+  assert.equal(app.store.management(mid).ownerId,'owner');
+  assert.equal((await call('owner',`${path}/limit`,'PUT',{month:'2026-10',amount:1000})).status,200);
+  assert.equal((await call('owner',`${path}/cash-planning`,'PUT',{currentBalance:-20,minimumReserve:10,horizonDays:60,balanceDate:'2026-10-02'})).status,200);
+  assert.equal((await call('master','/api/users/editor','PATCH',{active:false})).status,200);
+  assert.equal((await call('editor',`${path}/transactions`)).status,401);
+  assert.equal((await call('owner','/api/auth/logout','POST',{})).status,200);
+  assert.equal((await call('owner',path)).status,401);
+  assert.equal((await fetch(`${base}/.env`)).status,404);
+  assert.equal((await fetch(`${base}/assets/js/firebase-config.js`)).status,404);
+  assert.equal((await fetch(`${base}/`)).status,200);
+  assert.equal((await fetch(`${base}/assets/js/api-service.js`)).status,200);
+});
+
+test('Importação preserva vínculos e arquivos, verifica checksum e recusa sobrescrita', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'organiza-import-'));
+  t.after(() => rm(directory,{recursive:true,force:true}));
+  const source = join(directory,'export'); await mkdir(join(source,'files'),{recursive:true});
+  const id = '11111111-1111-4111-8111-111111111111';
+  const bytes = Buffer.from('%PDF-1.4 test'); await writeFile(join(source,'files',id),bytes);
+  const manifest = { version:1, users:[{id:'u1',data:{name:'Master',email:'master@example.com',active:true,role:'master'},googleId:'google-sub'}], managements:[{id:'m1',data:{name:'Casa',ownerId:'u1',memberIds:['u1'],memberRoles:{u1:'owner'}}}], records:[{id:'same',managementId:'m1',kind:'cards',data:{name:'Card'}},{id:'same',managementId:'m1',kind:'transactions',data:{description:'Test',cardId:'same',attachment:{path:id,url:'https://firebase.invalid/file'}}}], attachments:[{id,managementId:'m1',file:id,name:'test.pdf',type:'application/pdf',sha256:createHash('sha256').update(bytes).digest('hex')}] };
+  await writeFile(join(source,'manifest.json'),JSON.stringify(manifest));
+  const destination = join(directory,'data');
+  const summary = await importExport(source,destination);
+  assert.deepEqual(summary,{users:1,managements:1,records:2,attachments:1});
+  const store = openStore(destination);
+  assert.equal(store.records('m1','transactions')[0].cardId,'m1_cards_same');
+  assert.equal(store.records('m1','transactions')[0].attachment.url,`/api/attachments/${id}`);
+  assert.equal(store.db.prepare('SELECT google_id FROM users').get().google_id,'google-sub');
+  store.db.close();
+  assert.deepEqual(await readFile(join(destination,'uploads',id)),bytes);
+  await assert.rejects(importExport(source,destination),/banco vazio/);
+  await writeFile(join(source,'files',id),'corrupted');
+  await assert.rejects(importExport(source,join(directory,'corrupt')),/Checksum/);
+  const empty = openStore(join(directory,'corrupt'));
+  assert.equal(empty.users().length,0); empty.db.close();
+});
+
+test('Datas de recorrência respeitam fevereiro e mudança de ano', () => {
+  assert.equal(shiftDateByMonths('2024-01-31',1),'2024-02-29');
+  assert.equal(shiftDateByMonths('2026-12-31',1),'2027-01-31');
+  assert.equal(shiftDateByMonths('',1),'');
+});
