@@ -60,6 +60,15 @@ export function openStore(directory) {
       id TEXT PRIMARY KEY, management_id TEXT NOT NULL REFERENCES managements(id) ON DELETE CASCADE,
       name TEXT NOT NULL, type TEXT NOT NULL, file TEXT NOT NULL UNIQUE
     );
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      endpoint TEXT NOT NULL, management_id TEXT NOT NULL REFERENCES managements(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, subscription TEXT NOT NULL,
+      created_at INTEGER NOT NULL, PRIMARY KEY(endpoint, management_id)
+    );
+    CREATE TABLE IF NOT EXISTS push_deliveries (
+      endpoint TEXT NOT NULL, transaction_id TEXT NOT NULL, kind TEXT NOT NULL,
+      delivered_at INTEGER NOT NULL, PRIMARY KEY(endpoint, transaction_id, kind)
+    );
   `);
   const decode = row => row ? { ...JSON.parse(row.data), id: row.id } : null;
   return {

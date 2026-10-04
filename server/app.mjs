@@ -1,5 +1,6 @@
 import { createServer } from 'node:http';
 import { randomBytes, randomUUID, createHash } from 'node:crypto';
+import webpush from 'web-push';
 import { readFile, writeFile, unlink, mkdir } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,6 +39,10 @@ export async function createApp({ dataDir = process.env.DATA_DIR || './data', or
   const cookieName = secure ? '__Host-organiza' : 'organiza';
   const store = openStore(dataDir);
   const encryptionKey = attachmentKey(attachmentEncryptionKey);
+  const vapidPublicKey = process.env.WEB_PUSH_VAPID_PUBLIC_KEY || '';
+  const vapidPrivateKey = process.env.WEB_PUSH_VAPID_PRIVATE_KEY || '';
+  const pushReady = Boolean(vapidPublicKey && vapidPrivateKey);
+  if (pushReady) webpush.setVapidDetails(`mailto:${process.env.WEB_PUSH_CONTACT || 'admin@localhost'}`, vapidPublicKey, vapidPrivateKey);
   const uploads = resolve(dataDir, 'uploads');
   await mkdir(uploads, { recursive: true });
   const attempts = new Map();
@@ -67,6 +72,28 @@ export async function createApp({ dataDir = process.env.DATA_DIR || './data', or
     if (required === 'owner' && item.ownerId !== user.id) fail(403, 'Apenas o proprietário pode fazer isso.');
     if (required === 'editor' && !['owner', 'editor'].includes(role)) fail(403, 'Este acesso permite somente leitura.');
     return item;
+  };
+  const runPushReminders = async () => {
+    if (!pushReady) return;
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: process.env.NOTIFICATION_TIME_ZONE || 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const difference = (due) => Math.round((Date.parse(`${due}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000);
+    for (const management of store.managements()) {
+      const config = management.pushNotifications;
+      if (!config?.enabled) continue;
+      const subscriptions = store.db.prepare('SELECT endpoint,subscription FROM push_subscriptions WHERE management_id=?').all(management.id);
+      for (const transaction of store.records(management.id, 'transactions')) {
+        if (transaction.type !== 'expense' || transaction.status === 'paid' || !transaction.dueDate) continue;
+        const days = difference(transaction.dueDate);
+        const kind = days === config.daysBefore ? 'due' : days === -config.daysOverdue ? 'overdue' : null;
+        if (!kind) continue;
+        const payload = JSON.stringify(kind === 'due' ? { title: 'Débito próximo do vencimento', body: `${transaction.description} vence em ${days === 0 ? 'hoje' : `${days} dia(s)`}.`, url: '/?view=calendar' } : { title: 'Débito vencido sem pagamento', body: `${transaction.description} venceu e continua pendente.`, url: '/?view=calendar' });
+        await Promise.all(subscriptions.map(async row => {
+          if (store.db.prepare('SELECT 1 FROM push_deliveries WHERE endpoint=? AND transaction_id=? AND kind=?').get(row.endpoint, transaction.id, kind)) return;
+          try { await webpush.sendNotification(JSON.parse(row.subscription), payload, { TTL: 86400 }); store.db.prepare('INSERT OR IGNORE INTO push_deliveries VALUES (?,?,?,?)').run(row.endpoint, transaction.id, kind, Date.now()); }
+          catch (error) { if (error.statusCode === 404 || error.statusCode === 410) store.db.prepare('DELETE FROM push_subscriptions WHERE endpoint=?').run(row.endpoint); else console.error('Falha ao enviar notificação push:', error.message); }
+        }));
+      }
+    }
   };
   const rateLimit = req => {
     const now = Date.now();
@@ -152,6 +179,7 @@ export async function createApp({ dataDir = process.env.DATA_DIR || './data', or
       if (path.startsWith('/api/')) {
         const user = authenticate(req);
         if (path === '/api/profile' && method === 'GET') return json(res, user);
+        if (path === '/api/push/config' && method === 'GET') return json(res, { enabled: pushReady, publicKey: pushReady ? vapidPublicKey : '' });
         if (path === '/api/users') {
           master(user);
           if (method === 'GET') return json(res, store.users());
@@ -225,6 +253,19 @@ export async function createApp({ dataDir = process.env.DATA_DIR || './data', or
             if (![30,60,90].includes(Number(data.horizonDays))) fail(400, 'Horizonte inválido.');
             current.cashPlanning = { currentBalance: number(data.currentBalance, -1e12), minimumReserve: number(data.minimumReserve), horizonDays: Number(data.horizonDays), balanceDate: date(data.balanceDate, true) };
             store.putManagement(mid, { ...current, updatedAt: now }); return json(res, { ok: true });
+          }
+          if (parts[3] === 'push-settings' && parts.length === 4 && method === 'PUT') {
+            const data = await body(req);
+            if (typeof data.enabled !== 'boolean' || !Number.isInteger(data.daysBefore) || data.daysBefore < 0 || data.daysBefore > 30 || !Number.isInteger(data.daysOverdue) || data.daysOverdue < 1 || data.daysOverdue > 30) fail(400, 'Configuração de notificações inválida.');
+            current.pushNotifications = { enabled: data.enabled, daysBefore: data.daysBefore, daysOverdue: data.daysOverdue };
+            store.putManagement(mid, { ...current, updatedAt: now }); return json(res, { ok: true });
+          }
+          if (parts[3] === 'push-subscriptions' && parts.length === 4 && method === 'POST') {
+            if (!pushReady) fail(503, 'Notificações push não estão configuradas no servidor.');
+            const data = await body(req);
+            if (typeof data?.endpoint !== 'string' || data.endpoint.length > 2048 || typeof data.keys?.p256dh !== 'string' || typeof data.keys?.auth !== 'string') fail(400, 'Assinatura de push inválida.');
+            store.db.prepare('INSERT INTO push_subscriptions(endpoint,management_id,user_id,subscription,created_at) VALUES (?,?,?,?,?) ON CONFLICT(endpoint,management_id) DO UPDATE SET user_id=excluded.user_id,subscription=excluded.subscription,created_at=excluded.created_at').run(data.endpoint, mid, user.id, JSON.stringify(data), Date.now());
+            return json(res, { ok: true });
           }
           if (parts[3] === 'attachments' && parts.length === 4 && method === 'POST') {
             const contentType = req.headers['content-type'];
@@ -304,7 +345,7 @@ export async function createApp({ dataDir = process.env.DATA_DIR || './data', or
       }
       if (!['GET','HEAD'].includes(method)) fail(405, 'Método não permitido.');
       const relative = path === '/' ? 'index.html' : decodeURIComponent(path).slice(1);
-      if (!['index.html','favicon.ico','site.webmanifest'].includes(relative) && !/^assets\/(css|js|icons)\/[a-z0-9._-]+$/i.test(relative) && relative !== 'assets/logo.png') fail(404, 'Arquivo não encontrado.');
+      if (!['index.html','favicon.ico','site.webmanifest','push-sw.js'].includes(relative) && !/^assets\/(css|js|icons)\/[a-z0-9._-]+$/i.test(relative) && relative !== 'assets/logo.png') fail(404, 'Arquivo não encontrado.');
       if (relative.includes('firebase-')) fail(404, 'Arquivo não encontrado.');
       const file = resolve(root, relative);
       if (!file.startsWith(root.endsWith(sep) ? root : root + sep)) fail(404, 'Arquivo não encontrado.');
@@ -320,5 +361,7 @@ export async function createApp({ dataDir = process.env.DATA_DIR || './data', or
   });
   server.requestTimeout = 30000;
   server.headersTimeout = 15000;
-  return { server, store, close: () => new Promise((resolveClose, reject) => { server.close(error => { store.db.close(); error ? reject(error) : resolveClose(); }); server.closeIdleConnections(); }) };
+  const pushTimer = setInterval(() => runPushReminders().catch(error => console.error('Falha na rotina de push:', error.message)), 15 * 60 * 1000);
+  pushTimer.unref(); runPushReminders().catch(error => console.error('Falha na rotina de push:', error.message));
+  return { server, store, close: () => new Promise((resolveClose, reject) => { clearInterval(pushTimer); server.close(error => { store.db.close(); error ? reject(error) : resolveClose(); }); server.closeIdleConnections(); }) };
 }

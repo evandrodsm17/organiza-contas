@@ -1689,17 +1689,48 @@ function renderSettings(monthName) {
     ? `<div class="settings-budget-preview"><span><small>Despesas previstas</small><b>${money.format(currentExpense)}</b></span><span><small>Limite atual</small><b>${limit ? money.format(limit) : "Não definido"}</b></span></div><form class="expense-limit-form" id="expenseLimitForm"><label>Valor máximo para ${esc(monthName)}<div class="currency-field"><span>R$</span><input name="limit" type="number" min="1" step="0.01" value="${limit || ""}" placeholder="Ex.: 3500,00" inputmode="decimal" ${!canEdit() ? "disabled" : ""}></div></label>${canEdit() ? `<div class="settings-actions"><button class="btn btn-primary" type="submit">Salvar limite</button>${limit ? '<button class="btn btn-soft" id="clearExpenseLimit" type="button">Remover limite</button>' : ""}</div>` : '<p class="settings-readonly">Seu acesso permite visualizar, mas não alterar este limite.</p>'}</form>`
     : `<div class="settings-empty"><p>Selecione ou crie um gerenciamento para definir o limite mensal.</p></div>`;
   const managementActions = `${canEdit() ? `<button class="btn btn-soft" id="editManagement" type="button">${icon("edit")} Editar gerenciamento</button>` : ""}${isOwner() ? `<button class="btn btn-soft" id="shareBtn" type="button">${icon("share")} Compartilhar acesso</button>` : ""}${canCreate ? `<button class="btn btn-primary" id="newManagement" type="button">${icon("plus")} Novo gerenciamento</button>` : ""}`;
+  const push = state.selected?.pushNotifications || { enabled: false, daysBefore: 3, daysOverdue: 1 };
+  const pushCard = state.selected ? `<section class="panel settings-card"><div class="settings-card-head"><span class="settings-card-icon">${icon("bell")}</span><div><h2>Avisos de débitos</h2><p>Receba um push antes do vencimento e quando uma conta continuar pendente.</p></div></div><form id="pushSettingsForm" class="cash-planning-settings-form"><div class="cash-planning-settings-fields"><label class="check"><input name="enabled" type="checkbox" ${push.enabled ? "checked" : ""} ${!canEdit() ? "disabled" : ""}> Ativar avisos</label><label>Antes do vencimento<select name="daysBefore" ${!canEdit() ? "disabled" : ""}>${[0,1,2,3,5,7,15,30].map(days => `<option value="${days}" ${push.daysBefore === days ? "selected" : ""}>${days === 0 ? "No vencimento" : `${days} dia(s) antes`}</option>`).join("")}</select></label><label>Após vencer<select name="daysOverdue" ${!canEdit() ? "disabled" : ""}>${[1,2,3,5,7,15,30].map(days => `<option value="${days}" ${push.daysOverdue === days ? "selected" : ""}>${days} dia(s) depois</option>`).join("")}</select></label></div>${canEdit() ? '<div class="cash-planning-settings-actions"><button class="btn btn-primary" type="submit">Salvar e ativar neste aparelho</button></div>' : '<p class="settings-readonly">Seu acesso permite visualizar, mas não alterar os avisos.</p>'}</form></section>` : "";
   const sessionCard = `<section class="panel settings-card settings-session-card"><div class="settings-card-head"><span class="settings-card-icon">${icon("logout")}</span><div><h2>Conta e sessão</h2><p>Consulte seu acesso ou encerre a sessão neste aparelho.</p></div></div><div class="settings-session-profile"><span>${initials(state.profile.name)}</span><div><b>${esc(state.profile.name)}</b><small>${esc(state.profile.email || state.user.email || "")}</small></div></div><button class="btn btn-danger settings-logout-button" id="settingsLogout" type="button">${icon("logout")} Sair da conta</button></section>`;
   return `<div class="settings-grid"><section class="panel settings-card settings-budget"><div class="settings-card-head"><span class="settings-card-icon">${icon("gauge")}</span><div><h2>Planejamento mensal</h2><p>Defina o teto de despesas para cada mês.</p></div><label class="settings-month">Período<input id="settingsMonthInput" type="month" value="${state.month}" aria-label="Mês do limite de despesas"></label></div>${budgetContent}</section>${renderCashPlanningSettings()}<section class="panel settings-card settings-cards"><div class="settings-card-head"><span class="settings-card-icon">${icon("credit-card")}</span><div><h2>Meus cartões</h2><p>Identifique as faturas pelo cartão, titular e aparência.</p></div>${state.selected && canEdit() ? `<button class="btn btn-primary settings-card-cta" id="newCard" type="button">${icon("plus")} Adicionar cartão</button>` : ""}</div>${renderCardsSettings()}</section><section class="panel settings-card"><div class="settings-card-head"><span class="settings-card-icon">${icon("wallet")}</span><div><h2>Gerenciamentos</h2><p>Crie, edite e compartilhe seus espaços financeiros.</p></div></div>${state.selected ? `<div class="settings-management"><small>Selecionado agora</small><b>${esc(state.selected.name)}</b><span>${esc(state.selected.description || "Sem descrição")}</span></div>` : '<div class="settings-empty"><p>Nenhum gerenciamento selecionado.</p></div>'}<div class="settings-actions settings-actions-wrap">${managementActions || '<span class="settings-readonly">Sem ações disponíveis para este acesso.</span>'}</div></section><section class="panel settings-card"><div class="settings-card-head"><span class="settings-card-icon">${icon("palette")}</span><div><h2>Aparência</h2><p>Escolha como o OrganizaContas deve ser exibido.</p></div></div><div class="theme-options" role="group" aria-label="Escolher tema"><button type="button" data-theme-choice="light" class="${preference === "light" ? "active" : ""}">${icon("sun")}<span><b>Claro</b><small>Sempre claro</small></span></button><button type="button" data-theme-choice="dark" class="${preference === "dark" ? "active" : ""}">${icon("moon")}<span><b>Escuro</b><small>Sempre escuro</small></span></button><button type="button" data-theme-choice="system" class="${preference === "system" ? "active" : ""}">${icon("monitor")}<span><b>Sistema</b><small>Segue o aparelho</small></span></button></div></section>${state.profile.role === "master" ? `<section class="panel settings-card settings-users-card"><div class="settings-card-head"><span class="settings-card-icon">${icon("users")}</span><div><h2>Usuários e permissões</h2><p>Crie acessos e defina quem pode criar gerenciamentos.</p></div></div><button class="settings-link" type="button" data-go="users"><span>Abrir gestão de usuários</span><b>›</b></button></section>` : ""}${sessionCard}</div>`;
 }
 function emptyManagement() {
   return `<section class="empty-state"><div>◫</div><h2>Comece criando um gerenciamento</h2><p>Você poderá organizar as contas da casa e compartilhar o calendário com outra pessoa.</p>${state.profile.canCreateManagement || state.profile.role === "master" ? '<button class="btn btn-primary" id="emptyCreate">Criar gerenciamento</button>' : "<p>Peça ao administrador permissão para criar gerenciamentos.</p>"}</section>`;
 }
+function renderPushSettingsCard() {
+  if (!state.selected) return "";
+  const push = state.selected.pushNotifications || { enabled: false, daysBefore: 3, daysOverdue: 1 };
+  return `<section class="panel settings-card"><div class="settings-card-head"><span class="settings-card-icon">${icon("bell")}</span><div><h2>Avisos de débitos</h2><p>Receba um push antes do vencimento e quando uma conta continuar pendente.</p></div></div><form id="pushSettingsForm" class="cash-planning-settings-form"><div class="cash-planning-settings-fields"><label class="check"><input name="enabled" type="checkbox" ${push.enabled ? "checked" : ""} ${!canEdit() ? "disabled" : ""}> Ativar avisos</label><label>Antes do vencimento<select name="daysBefore" ${!canEdit() ? "disabled" : ""}>${[0,1,2,3,5,7,15,30].map(days => `<option value="${days}" ${push.daysBefore === days ? "selected" : ""}>${days === 0 ? "No vencimento" : `${days} dia(s) antes`}</option>`).join("")}</select></label><label>Após vencer<select name="daysOverdue" ${!canEdit() ? "disabled" : ""}>${[1,2,3,5,7,15,30].map(days => `<option value="${days}" ${push.daysOverdue === days ? "selected" : ""}>${days} dia(s) depois</option>`).join("")}</select></label></div>${canEdit() ? '<div class="cash-planning-settings-actions"><button class="btn btn-primary" type="submit">Salvar e ativar neste aparelho</button></div>' : '<p class="settings-readonly">Seu acesso permite visualizar, mas não alterar os avisos.</p>'}</form></section>`;
+}
 function empty(text) {
   return `<div class="empty-inline">${text}</div>`;
 }
 
 function bindShell() {
+  if (state.view === "settings") {
+    document.querySelector(".settings-grid")?.insertAdjacentHTML("beforeend", renderPushSettingsCard());
+    const pushForm = document.querySelector("#pushSettingsForm");
+    if (pushForm && canEdit()) pushForm.onsubmit = async (event) => {
+      event.preventDefault();
+      const button = pushForm.querySelector('button[type="submit"]'); busy(button, true);
+      try {
+        const settings = { enabled: pushForm.enabled.checked, daysBefore: Number(pushForm.daysBefore.value), daysOverdue: Number(pushForm.daysOverdue.value) };
+        await ApiService.setPushSettings(state.selected.id, settings);
+        if (settings.enabled) {
+          if (!("serviceWorker" in navigator) || !("PushManager" in window)) throw new Error("Este navegador não oferece suporte a notificações push.");
+          const config = await ApiService.pushConfig();
+          if (!config.enabled) throw new Error("As chaves de notificações ainda não foram configuradas no servidor.");
+          const permission = await Notification.requestPermission();
+          if (permission !== "granted") throw new Error("Autorize as notificações no navegador para ativar os avisos.");
+          const registration = await navigator.serviceWorker.register("/push-sw.js");
+          const key = Uint8Array.from(atob(config.publicKey.replace(/-/g, "+").replace(/_/g, "/")), char => char.charCodeAt(0));
+          const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+          await ApiService.subscribePush(state.selected.id, subscription.toJSON());
+        }
+        toast(settings.enabled ? "Avisos configurados neste aparelho." : "Avisos desativados.");
+      } catch (error) { serviceError(error); busy(button, false); }
+    };
+  }
   document.querySelectorAll("[data-card-logo]").forEach(
     (image) =>
       (image.onerror = () => {
@@ -4005,6 +4036,7 @@ function icon(name) {
     edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/>',
     gauge:
       '<path d="M4 15a8 8 0 0 1 16 0"/><path d="m12 15 4-5"/><circle cx="12" cy="15" r="1"/>',
+    bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/>',
     wallet:
       '<path d="M4 6h14a2 2 0 0 1 2 2v10H4a2 2 0 0 1-2-2V6a3 3 0 0 1 3-3h12"/><path d="M16 11h4v4h-4a2 2 0 0 1 0-4Z"/>',
     "credit-card":

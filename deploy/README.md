@@ -44,6 +44,10 @@ docker compose start app
 
 Sem a mesma chave, os comprovantes não podem ser recuperados. Guarde-a em um cofre de segredos e inclua-a no procedimento de restauração de backups.
 
+## Notificações push de débitos
+
+Gere as chaves VAPID uma única vez e inclua no `.env` da VPS: `npx web-push generate-vapid-keys --json`. Copie `publicKey` para `WEB_PUSH_VAPID_PUBLIC_KEY`, `privateKey` para `WEB_PUSH_VAPID_PRIVATE_KEY` e defina `WEB_PUSH_CONTACT` com um e-mail administrativo. Depois do deploy, cada pessoa ativa os avisos no seu navegador em **Configurações → Avisos de débitos**. A rotina verifica débitos pendentes a cada 15 minutos e entrega cada lembrete uma única vez.
+
 ## Exportar os dados existentes
 
 No Firebase Console do projeto `organiza-contas-76388`, gere uma conta de serviço em Configurações do projeto → Contas de serviço. Salve o JSON em `.deployment/firebase-service-account.json`, excluído do Git. Não publique essa chave no chat, no repositório ou na imagem Docker.
