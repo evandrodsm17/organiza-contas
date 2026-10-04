@@ -112,6 +112,28 @@ Se o `.dockerignore` começa ignorando tudo (`*`), libere os dois arquivos:
 
 Sem isso, testes locais podem passar enquanto a imagem de produção falha por lockfile ausente ou módulo não encontrado.
 
+### Arquivos estáticos fora de `assets/`
+
+Service workers, manifestos, `robots.txt`, ícones e outros arquivos servidos pela raiz do domínio também precisam entrar na imagem. Quando usar uma allowlist no `.dockerignore`, libere-os e copie-os no Dockerfile:
+
+```dockerignore
+!push-sw.js
+!site.webmanifest
+!favicon.ico
+```
+
+```dockerfile
+COPY index.html favicon.ico site.webmanifest push-sw.js ./
+```
+
+Após o deploy, confirme o código HTTP do arquivo público antes de testar no navegador:
+
+```bash
+curl -I https://app.seudominio.com/push-sw.js
+```
+
+Para service workers, o resultado precisa ser `200` e o domínio deve usar HTTPS; um `404` impede a inscrição em notificações push.
+
 ## Subdomínio, Nginx e HTTPS
 
 1. Crie o registro DNS `A app.seudominio.com → IP_DA_VPS`.
