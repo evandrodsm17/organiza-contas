@@ -3703,6 +3703,12 @@ function openRecordModal(item = {}) {
   form.status.onchange = () =>
     (form.paidDate.required = form.status.value === "paid");
   form.status.onchange();
+  form.paidDate.onchange = () => {
+    if (form.paidDate.value) {
+      form.status.value = "paid";
+      form.status.onchange();
+    }
+  };
   form.onsubmit = async (e) => {
     e.preventDefault();
     const button = form.querySelector('button[type="submit"]');

@@ -3,11 +3,13 @@ import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { openStore } from './store.mjs';
+import { attachmentKey, decryptAttachment } from './attachment-crypto.mjs';
 
 const [sourcePath, directory = process.env.DATA_DIR || './data'] = process.argv.slice(2);
 if (!sourcePath) throw new Error('Uso: node server/verify-import.mjs DIRETORIO_EXPORTADO [DIRETORIO_DADOS]');
 const manifest = JSON.parse(await readFile(resolve(sourcePath,'manifest.json'),'utf8'));
 const store = openStore(directory);
+const encryptionKey = attachmentKey();
 try {
   assert.equal(store.db.prepare('PRAGMA integrity_check').get().integrity_check,'ok');
   for (const table of ['users','managements','records','attachments']) assert.equal(store.db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n,manifest[table].length,`Contagem divergente: ${table}`);
@@ -26,7 +28,7 @@ try {
     assert.deepEqual(store.record(r.managementId,r.kind,id),expected);
   }
   for (const a of manifest.attachments) {
-    assert.equal(createHash('sha256').update(await readFile(resolve(directory,'uploads',a.id))).digest('hex'),a.sha256);
+    assert.equal(createHash('sha256').update(decryptAttachment(await readFile(resolve(directory,'uploads',a.id)), encryptionKey)).digest('hex'),a.sha256);
   }
   console.log(JSON.stringify({ok:true,users:manifest.users.length,managements:manifest.managements.length,cards:manifest.records.filter(r=>r.kind==='cards').length,transactions:manifest.records.filter(r=>r.kind==='transactions').length,attachments:manifest.attachments.length,integrity:'ok'}));
 } catch {

@@ -5,6 +5,7 @@ import { resolve, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openStore, hashPassword, verifyPassword } from './store.mjs';
 import { fail, text, email, number, date, card, transaction, shiftDateByMonths } from './domain.mjs';
+import { attachmentKey, encryptAttachment, decryptAttachment } from './attachment-crypto.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const digest = value => createHash('sha256').update(value).digest('hex');
@@ -30,12 +31,13 @@ async function body(req, limit = 256 * 1024, raw = false) {
   } catch { fail(400, 'JSON inválido.'); }
 }
 
-export async function createApp({ dataDir = process.env.DATA_DIR || './data', origin = process.env.APP_ORIGIN || 'http://localhost:3000', googleClientId = process.env.GOOGLE_CLIENT_ID, googleClientSecret = process.env.GOOGLE_CLIENT_SECRET, trustProxy = process.env.TRUST_PROXY === '1' } = {}) {
+export async function createApp({ dataDir = process.env.DATA_DIR || './data', origin = process.env.APP_ORIGIN || 'http://localhost:3000', googleClientId = process.env.GOOGLE_CLIENT_ID, googleClientSecret = process.env.GOOGLE_CLIENT_SECRET, trustProxy = process.env.TRUST_PROXY === '1', attachmentEncryptionKey = process.env.ATTACHMENT_ENCRYPTION_KEY } = {}) {
   origin = new URL(origin).origin;
   if (process.env.NODE_ENV === 'production' && !origin.startsWith('https://')) throw new Error('APP_ORIGIN deve usar HTTPS em produção.');
   const secure = origin.startsWith('https://');
   const cookieName = secure ? '__Host-organiza' : 'organiza';
   const store = openStore(dataDir);
+  const encryptionKey = attachmentKey(attachmentEncryptionKey);
   const uploads = resolve(dataDir, 'uploads');
   await mkdir(uploads, { recursive: true });
   const attempts = new Map();
@@ -231,7 +233,7 @@ export async function createApp({ dataDir = process.env.DATA_DIR || './data', or
             const signatures = { 'image/jpeg': buffer[0] === 255 && buffer[1] === 216 && buffer[2] === 255, 'image/png': buffer.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10])), 'image/webp': buffer.subarray(0,4).toString() === 'RIFF' && buffer.subarray(8,12).toString() === 'WEBP', 'application/pdf': buffer.subarray(0,5).toString() === '%PDF-' };
             if (!signatures[contentType]) fail(400, 'O conteúdo não corresponde ao tipo de arquivo.');
             const name = text(decodeURIComponent(req.headers['x-file-name'] || 'comprovante'), 255);
-            const id = randomUUID(); await writeFile(resolve(uploads, id), buffer, { flag: 'wx', mode: 0o600 });
+            const id = randomUUID(); await writeFile(resolve(uploads, id), encryptAttachment(buffer, encryptionKey), { flag: 'wx', mode: 0o600 });
             try { store.db.prepare('INSERT INTO attachments VALUES (?,?,?,?,?)').run(id, mid, name, contentType, id); }
             catch (error) { await unlink(resolve(uploads, id)); throw error; }
             return json(res, { name, type: contentType, path: id, url: `/api/attachments/${id}` }, 201);
@@ -288,7 +290,7 @@ export async function createApp({ dataDir = process.env.DATA_DIR || './data', or
           if (!entry) fail(404, 'Comprovante não encontrado.');
           access(entry.management_id, user, method === 'DELETE' ? 'editor' : 'viewer');
           if (method === 'GET') {
-            const buffer = await readFile(resolve(uploads, entry.file));
+            const buffer = decryptAttachment(await readFile(resolve(uploads, entry.file)), encryptionKey);
             res.writeHead(200, { 'Content-Type': entry.type, 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(entry.name)}`, 'Content-Security-Policy': "sandbox; default-src 'none'" }); return res.end(buffer);
           }
           if (method === 'DELETE') {

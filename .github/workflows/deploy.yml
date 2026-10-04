@@ -32,6 +32,7 @@ jobs:
       - name: Validate operational scripts and Compose
         env:
           APP_DOMAIN: organiza-contas.vps11931.panel.icontainer.cloud
+          ATTACHMENT_ENCRYPTION_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
         run: |
           for script in deploy/*.sh; do bash -n "$script"; done
           shellcheck deploy/github-deploy.sh deploy/backup.sh

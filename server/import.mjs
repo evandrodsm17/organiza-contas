@@ -1,15 +1,17 @@
-import { readFile, mkdir, copyFile, unlink } from 'node:fs/promises';
+import { readFile, mkdir, unlink, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { openStore } from './store.mjs';
 import { email } from './domain.mjs';
+import { attachmentKey, encryptAttachment } from './attachment-crypto.mjs';
 import { pathToFileURL } from 'node:url';
 
-export async function importExport(sourcePath, dataDir) {
+export async function importExport(sourcePath, dataDir, attachmentEncryptionKey = process.env.ATTACHMENT_ENCRYPTION_KEY) {
   const source = resolve(sourcePath);
   const manifest = JSON.parse(await readFile(resolve(source, 'manifest.json'), 'utf8'));
   if (manifest.version !== 1) throw new Error('Formato de exportação inválido.');
   const store = openStore(dataDir);
+  const encryptionKey = attachmentKey(attachmentEncryptionKey);
   const copied = [];
   try {
     for (const table of ['users','managements','records','attachments']) if (store.db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n) throw new Error('Importação exige banco vazio. Nenhum dado existente foi sobrescrito.');
@@ -31,7 +33,7 @@ export async function importExport(sourcePath, dataDir) {
       const file = resolve(source, 'files', a.file);
       if (createHash('sha256').update(await readFile(file)).digest('hex') !== a.sha256) throw new Error(`Checksum divergente: ${a.id}`);
       const destination = resolve(uploads, a.id);
-      await copyFile(file, destination, 1); copied.push(destination);
+      await writeFile(destination, encryptAttachment(await readFile(file), encryptionKey), { flag: 'wx', mode: 0o600 }); copied.push(destination);
     }
     store.atomic(() => {
       for (const u of manifest.users) {

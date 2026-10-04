@@ -8,10 +8,13 @@ import { createApp } from '../server/app.mjs';
 import { hashPassword, openStore } from '../server/store.mjs';
 import { importExport } from '../server/import.mjs';
 import { shiftDateByMonths } from '../server/domain.mjs';
+import { decryptAttachment, isEncryptedAttachment } from '../server/attachment-crypto.mjs';
+
+const attachmentEncryptionKey = Buffer.alloc(32, 7).toString('base64');
 
 test('API: sessões, isolamento, permissões, recorrências e comprovantes', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'organiza-test-'));
-  const app = await createApp({ dataDir: directory, origin: 'http://localhost:3000' });
+  const app = await createApp({ dataDir: directory, origin: 'http://localhost:3000', attachmentEncryptionKey });
   await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
   t.after(async () => { await app.close(); await rm(directory, { recursive: true, force: true }); });
   const base = `http://127.0.0.1:${app.server.address().port}`;
@@ -58,6 +61,10 @@ test('API: sessões, isolamento, permissões, recorrências e comprovantes', asy
   const pdf = Buffer.from('%PDF-1.4\nexample');
   const attachment = await call('editor',`${path}/attachments`,'POST',pdf,{'Content-Type':'application/pdf','X-File-Name':'recibo.pdf'});
   assert.equal(attachment.status,201);
+  const encryptedFile = await readFile(join(directory, 'uploads', attachment.data.path));
+  assert.ok(isEncryptedAttachment(encryptedFile));
+  assert.notDeepEqual(encryptedFile, pdf);
+  assert.deepEqual(decryptAttachment(encryptedFile, Buffer.from(attachmentEncryptionKey, 'base64')), pdf);
   assert.equal((await call('outsider',attachment.data.url)).status,404);
   assert.deepEqual((await call('viewer',attachment.data.url)).data,pdf);
   assert.equal((await call('editor',`${path}/attachments`,'POST',Buffer.from('<script/>'),{'Content-Type':'image/png'})).status,400);
@@ -94,17 +101,19 @@ test('Importação preserva vínculos e arquivos, verifica checksum e recusa sob
   const manifest = { version:1, users:[{id:'u1',data:{name:'Master',email:'master@example.com',active:true,role:'master'},googleId:'google-sub'}], managements:[{id:'m1',data:{name:'Casa',ownerId:'u1',memberIds:['u1'],memberRoles:{u1:'owner'}}}], records:[{id:'same',managementId:'m1',kind:'cards',data:{name:'Card'}},{id:'same',managementId:'m1',kind:'transactions',data:{description:'Test',cardId:'same',attachment:{path:id,url:'https://firebase.invalid/file'}}}], attachments:[{id,managementId:'m1',file:id,name:'test.pdf',type:'application/pdf',sha256:createHash('sha256').update(bytes).digest('hex')}] };
   await writeFile(join(source,'manifest.json'),JSON.stringify(manifest));
   const destination = join(directory,'data');
-  const summary = await importExport(source,destination);
+  const summary = await importExport(source,destination,attachmentEncryptionKey);
   assert.deepEqual(summary,{users:1,managements:1,records:2,attachments:1});
   const store = openStore(destination);
   assert.equal(store.records('m1','transactions')[0].cardId,'m1_cards_same');
   assert.equal(store.records('m1','transactions')[0].attachment.url,`/api/attachments/${id}`);
   assert.equal(store.db.prepare('SELECT google_id FROM users').get().google_id,'google-sub');
   store.db.close();
-  assert.deepEqual(await readFile(join(destination,'uploads',id)),bytes);
-  await assert.rejects(importExport(source,destination),/banco vazio/);
+  const imported = await readFile(join(destination,'uploads',id));
+  assert.ok(isEncryptedAttachment(imported));
+  assert.deepEqual(decryptAttachment(imported, Buffer.from(attachmentEncryptionKey, 'base64')),bytes);
+  await assert.rejects(importExport(source,destination,attachmentEncryptionKey),/banco vazio/);
   await writeFile(join(source,'files',id),'corrupted');
-  await assert.rejects(importExport(source,join(directory,'corrupt')),/Checksum/);
+  await assert.rejects(importExport(source,join(directory,'corrupt'),attachmentEncryptionKey),/Checksum/);
   const empty = openStore(join(directory,'corrupt'));
   assert.equal(empty.users().length,0); empty.db.close();
 });

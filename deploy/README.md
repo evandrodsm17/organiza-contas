@@ -23,6 +23,27 @@ curl --fail http://127.0.0.1:3080/api/health
 
 Configure um host específico no Nginx existente com certificado válido para o subdomínio, `client_max_body_size 11m` e `proxy_pass http://127.0.0.1:3080`. Há um exemplo em `nginx.conf.example`. Valide com `nginx -t` antes do reload. Não sobrescreva as regras do painel. O proxy deve substituir `X-Forwarded-For` pelo endereço do cliente; a aplicação confia nele para limitar tentativas de login.
 
+## Criptografia dos comprovantes
+
+Os arquivos anexados são cifrados no volume com AES-256-GCM. Antes do primeiro deploy desta versão, gere uma chave e acrescente-a ao `.env` da VPS (não a envie ao GitHub, nem a perca):
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+printf '\nATTACHMENT_ENCRYPTION_KEY=COLE_A_CHAVE_GERADA\n' >> /opt/organiza-contas/.env
+chmod 600 /opt/organiza-contas/.env
+```
+
+Depois que a imagem com esta versão tiver sido publicada, migre os comprovantes existentes durante uma janela curta de manutenção. O deploy já cria um backup antes de atualizar; ainda assim, confirme que esse backup existe antes de executar a migração. O comando é idempotente e ignora arquivos já cifrados:
+
+```bash
+cd /opt/organiza-contas
+docker compose stop app
+docker compose run --rm --no-deps app node server/encrypt-attachments.mjs
+docker compose start app
+```
+
+Sem a mesma chave, os comprovantes não podem ser recuperados. Guarde-a em um cofre de segredos e inclua-a no procedimento de restauração de backups.
+
 ## Exportar os dados existentes
 
 No Firebase Console do projeto `organiza-contas-76388`, gere uma conta de serviço em Configurações do projeto → Contas de serviço. Salve o JSON em `.deployment/firebase-service-account.json`, excluído do Git. Não publique essa chave no chat, no repositório ou na imagem Docker.
