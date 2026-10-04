@@ -788,6 +788,42 @@ aside {
   color: var(--green);
   font-weight: 600;
 }
+.record-attachment-field {
+  display: grid;
+  gap: 10px;
+}
+.attachment-current {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.attachment-current > span,
+.attachment-current > span:last-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.attachment-current svg {
+  width: 18px;
+  height: 18px;
+  color: var(--green);
+}
+.attachment-removed {
+  color: var(--danger);
+  font-weight: 600;
+}
+@media (max-width: 600px) {
+  .attachment-current,
+  .attachment-current > span:last-child {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
 .modal-actions {
   display: flex;
   justify-content: flex-end;

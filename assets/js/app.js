@@ -3609,7 +3609,7 @@ function openRecordModal(item = {}) {
       ? `<section class="recurrence-context full"><b>${item.recurrenceType === "installment" ? "Parcela" : "Despesa recorrente"} ${item.recurrenceIndex} de ${item.recurrenceTotal}</b><small>Valor, datas e descrição podem ser propagados. Pagamento e comprovante continuam individuais.</small><div class="recurrence-scope" role="radiogroup" aria-label="Alcance da alteração"><label><input type="radio" name="recurrenceScope" value="single" checked><span><b>Somente este</b><small>Os outros meses não mudam</small></span></label>${remainingOccurrences > 1 ? `<label><input type="radio" name="recurrenceScope" value="future"><span><b>Este e os próximos</b><small>${remainingOccurrences} lançamentos</small></span></label>` : ""}<label><input type="radio" name="recurrenceScope" value="all"><span><b>Toda a série</b><small>${seriesOccurrences} lançamentos</small></span></label></div></section>`
       : "";
   showModal(
-    `<form class="modal modal-large" id="recordForm"><button class="modal-close" type="button">×</button><span class="eyebrow">${item.id ? "EDITAR" : "NOVO"} LANÇAMENTO</span><h2>${item.id ? esc(item.description) : "Adicionar ao calendário"}</h2><div class="type-toggle"><label><input type="radio" name="type" value="expense" ${type === "expense" ? "checked" : ""}> Débito</label><label><input type="radio" name="type" value="income" ${type === "income" ? "checked" : ""}> Entrada</label></div><div class="form-grid"><label>Descrição<input name="description" value="${attr(baseDescription)}" required maxlength="120"></label><label>Valor<input name="amount" type="number" min="0.01" step="0.01" value="${item.amount || ""}" required></label><label>Categoria<select name="category" id="categorySelect" required></select></label><label>Data de vencimento/recebimento<input name="dueDate" type="date" value="${item.dueDate || ""}" required></label><section class="record-card-field full" id="recordCardField" hidden><div class="record-card-select-row"><label>Cartão da fatura<select name="cardId" id="recordCardSelect"></select></label><button class="btn btn-soft" id="quickAddCard" type="button">${icon("plus")} Cadastrar cartão</button></div><div id="recordCardPreview"></div></section><label>Data que deseja pagar/receber<input name="plannedDate" type="date" value="${item.plannedDate || item.dueDate || ""}"></label><label id="recordPriorityField" ${type === "income" ? "hidden" : ""}>Prioridade no planejamento<select name="priority"><option value="essential" ${priority === "essential" ? "selected" : ""}>Essencial</option><option value="important" ${priority === "important" ? "selected" : ""}>Importante</option><option value="flexible" ${priority === "flexible" ? "selected" : ""}>Flexível</option></select><small>Usada quando o dinheiro não cobre todas as contas.</small></label><section class="record-delay-field full" id="recordDelayField" ${type === "income" ? "hidden" : ""}><label class="record-delay-toggle"><input name="allowLatePayment" type="checkbox" value="true" ${item.allowLatePayment === true ? "checked" : ""}><span><b>Permitir sugestão de pagamento após o vencimento</b><small>Ative somente quando você conhecer e aceitar as consequências do atraso.</small></span></label><div class="record-delay-options" id="recordDelayOptions" ${item.allowLatePayment === true ? "" : "hidden"}><label>Limite de atraso <div><input name="maxDelayDays" type="number" min="1" max="90" step="1" value="${item.maxDelayDays || 7}" inputmode="numeric"><span>dias</span></div></label><label>Custo total estimado <div><input name="lateFeePercent" type="number" min="0" max="100" step="0.01" value="${item.lateFeePercent ?? 0}" inputmode="decimal"><span>%</span></div></label><p>${icon("shield")} Confira multa, juros, risco de suspensão do serviço e efeitos no crédito antes de permitir a postergação.</p></div></section><label>Status<select name="status" id="status"><option value="pending" ${!paid ? "selected" : ""}>Pendente</option><option value="paid" ${paid ? "selected" : ""}>${type === "income" ? "Recebido" : "Pago"}</option></select></label><label id="paidDateLabel">Data real do pagamento/recebimento<input name="paidDate" type="date" value="${item.paidDate || ""}"></label>${recurrenceFields}<label class="full">Observações<textarea name="notes" maxlength="500">${esc(item.notes || "")}</textarea></label><label class="full file-label">Comprovante (imagem ou PDF, até 10 MB)<input name="attachment" type="file" accept="image/jpeg,image/png,image/webp,application/pdf">${item.attachment?.url ? `<a href="${attr(item.attachment.url)}" target="_blank" rel="noopener">Abrir comprovante atual: ${esc(item.attachment.name)}</a>` : ""}</label></div><div class="modal-actions">${item.id ? '<button class="btn btn-danger" type="button" id="deleteRecord">Excluir</button>' : ""}<button class="btn btn-primary" type="submit">Salvar lançamento</button></div></form>`,
+    `<form class="modal modal-large" id="recordForm"><button class="modal-close" type="button">×</button><span class="eyebrow">${item.id ? "EDITAR" : "NOVO"} LANÇAMENTO</span><h2>${item.id ? esc(item.description) : "Adicionar ao calendário"}</h2><div class="type-toggle"><label><input type="radio" name="type" value="expense" ${type === "expense" ? "checked" : ""}> Débito</label><label><input type="radio" name="type" value="income" ${type === "income" ? "checked" : ""}> Entrada</label></div><div class="form-grid"><label>Descrição<input name="description" value="${attr(baseDescription)}" required maxlength="120"></label><label>Valor<input name="amount" type="number" min="0.01" step="0.01" value="${item.amount || ""}" required></label><label>Categoria<select name="category" id="categorySelect" required></select></label><label>Data de vencimento/recebimento<input name="dueDate" type="date" value="${item.dueDate || ""}" required></label><section class="record-card-field full" id="recordCardField" hidden><div class="record-card-select-row"><label>Cartão da fatura<select name="cardId" id="recordCardSelect"></select></label><button class="btn btn-soft" id="quickAddCard" type="button">${icon("plus")} Cadastrar cartão</button></div><div id="recordCardPreview"></div></section><label>Data que deseja pagar/receber<input name="plannedDate" type="date" value="${item.plannedDate || item.dueDate || ""}"></label><label id="recordPriorityField" ${type === "income" ? "hidden" : ""}>Prioridade no planejamento<select name="priority"><option value="essential" ${priority === "essential" ? "selected" : ""}>Essencial</option><option value="important" ${priority === "important" ? "selected" : ""}>Importante</option><option value="flexible" ${priority === "flexible" ? "selected" : ""}>Flexível</option></select><small>Usada quando o dinheiro não cobre todas as contas.</small></label><section class="record-delay-field full" id="recordDelayField" ${type === "income" ? "hidden" : ""}><label class="record-delay-toggle"><input name="allowLatePayment" type="checkbox" value="true" ${item.allowLatePayment === true ? "checked" : ""}><span><b>Permitir sugestão de pagamento após o vencimento</b><small>Ative somente quando você conhecer e aceitar as consequências do atraso.</small></span></label><div class="record-delay-options" id="recordDelayOptions" ${item.allowLatePayment === true ? "" : "hidden"}><label>Limite de atraso <div><input name="maxDelayDays" type="number" min="1" max="90" step="1" value="${item.maxDelayDays || 7}" inputmode="numeric"><span>dias</span></div></label><label>Custo total estimado <div><input name="lateFeePercent" type="number" min="0" max="100" step="0.01" value="${item.lateFeePercent ?? 0}" inputmode="decimal"><span>%</span></div></label><p>${icon("shield")} Confira multa, juros, risco de suspensão do serviço e efeitos no crédito antes de permitir a postergação.</p></div></section><label>Status<select name="status" id="status"><option value="pending" ${!paid ? "selected" : ""}>Pendente</option><option value="paid" ${paid ? "selected" : ""}>${type === "income" ? "Recebido" : "Pago"}</option></select></label><label id="paidDateLabel">Data real do pagamento/recebimento<input name="paidDate" type="date" value="${item.paidDate || ""}"></label>${recurrenceFields}<label class="full">Observações<textarea name="notes" maxlength="500">${esc(item.notes || "")}</textarea></label><section class="full record-attachment-field"><label class="file-label">Comprovante (imagem ou PDF, até 10 MB)<input name="attachment" type="file" accept="image/jpeg,image/png,image/webp,application/pdf"></label><div id="attachmentCurrent"></div></section></div><div class="modal-actions">${item.id ? '<button class="btn btn-danger" type="button" id="deleteRecord">Excluir</button>' : ""}<button class="btn btn-primary" type="submit">Salvar lançamento</button></div></form>`,
   );
   const form = document.querySelector("#recordForm");
   const category = form.querySelector("#categorySelect");
@@ -3623,6 +3623,23 @@ function openRecordModal(item = {}) {
   const delayToggle = form.elements.allowLatePayment;
   let priorityTouched = Boolean(item.priority);
   const submitButton = form.querySelector('button[type="submit"]');
+  const attachmentCurrent = form.querySelector("#attachmentCurrent");
+  let attachmentRemoved = false;
+  const renderAttachmentCurrent = () => {
+    if (!item.attachment?.url || attachmentRemoved) {
+      attachmentCurrent.innerHTML = attachmentRemoved
+        ? '<span class="attachment-removed">Comprovante será removido ao salvar.</span>'
+        : "";
+      return;
+    }
+    attachmentCurrent.innerHTML = `<div class="attachment-current"><span>${icon("receipt")}<b>${esc(item.attachment.name)}</b></span><span><a class="btn btn-soft" href="${attr(item.attachment.url)}" target="_blank" rel="noopener">Visualizar</a><button class="btn btn-danger" type="button" id="removeAttachment">Excluir comprovante</button></span></div>`;
+    attachmentCurrent.querySelector("#removeAttachment").onclick = () => {
+      if (!confirm("Excluir este comprovante ao salvar a despesa?")) return;
+      attachmentRemoved = true;
+      renderAttachmentCurrent();
+    };
+  };
+  renderAttachmentCurrent();
   const updateRecurrence = () => {
     if (!recurrenceCard) return;
     const isExpense = form.type.value === "expense";
@@ -3690,6 +3707,8 @@ function openRecordModal(item = {}) {
     e.preventDefault();
     const button = form.querySelector('button[type="submit"]');
     busy(button, true);
+    let uploadedAttachment;
+    let persisted = false;
     try {
       const data = Object.fromEntries(new FormData(form));
       const recurring =
@@ -3745,13 +3764,14 @@ function openRecordModal(item = {}) {
         data.cardId = "";
         data.cardSnapshot = null;
       }
-      if (form.attachment.files[0])
-        data.attachment = await ApiService.uploadAttachment(
+      if (form.attachment.files[0]) {
+        uploadedAttachment = await ApiService.uploadAttachment(
           state.selected.id,
           form.attachment.files[0],
           state.user.uid,
         );
-      else data.attachment = item.attachment || null;
+        data.attachment = uploadedAttachment;
+      } else data.attachment = attachmentRemoved ? null : item.attachment || null;
       if (recurring)
         await ApiService.saveRecurringTransactions(
           state.selected.id,
@@ -3783,6 +3803,15 @@ function openRecordModal(item = {}) {
           item.id,
         );
       }
+      persisted = true;
+      const previousAttachmentPath = item.attachment?.path;
+      if (previousAttachmentPath && previousAttachmentPath !== data.attachment?.path) {
+        const removal = await Promise.allSettled([
+          ApiService.deleteAttachment(previousAttachmentPath),
+        ]);
+        if (removal[0].status === "rejected")
+          toast("A despesa foi salva, mas não foi possível excluir o comprovante anterior.", "danger");
+      }
       closeModal();
       if (!item.id) {
         state.view = "dashboard";
@@ -3798,6 +3827,8 @@ function openRecordModal(item = {}) {
             : "Lançamento salvo.",
       );
     } catch (err) {
+      if (!persisted && uploadedAttachment?.path)
+        ApiService.deleteAttachment(uploadedAttachment.path).catch(() => {});
       serviceError(err);
       busy(button, false);
     }
