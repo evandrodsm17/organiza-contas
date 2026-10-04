@@ -1520,7 +1520,7 @@ function recordRow(item) {
     Number(item.recurrenceTotal) > 1
       ? ` · ${item.recurrenceType === "installment" ? "Parcela" : "Recorrente"} ${item.recurrenceIndex}/${item.recurrenceTotal}`
       : "";
-  return `<button class="record-row" data-edit="${item.id}">${categoryIconBadge(item)}<div><b>${esc(item.description)}</b><small>${esc(categoryMeta(item))} · ${formatDate(item.dueDate)}${recurrence}</small></div><strong class="${item.type === "income" ? "positive" : ""}">${item.type === "income" ? "+ " : ""}${money.format(item.amount)}</strong><span class="pill ${status.className}">${status.label}</span></button>`;
+  return `<div class="record-row-wrap"><button class="record-row" data-edit="${item.id}">${categoryIconBadge(item)}<div><b>${esc(item.description)}</b><small>${esc(categoryMeta(item))} · ${formatDate(item.dueDate)}${recurrence}</small></div><strong class="${item.type === "income" ? "positive" : ""}">${item.type === "income" ? "+ " : ""}${money.format(item.amount)}</strong><span class="pill ${status.className}">${status.label}</span></button>${quickPayButton(item)}</div>`;
 }
 
 function renderCalendar(monthName) {
@@ -1631,7 +1631,13 @@ function agendaDay(date, items) {
 
 function agendaItem(item, showDate = false) {
   const status = financialStatus(item);
-  return `<button type="button" class="agenda-item" data-edit="${item.id}">${categoryIconBadge(item)}<span class="agenda-item-copy"><b>${esc(item.description)}</b><small>${esc(categoryMeta(item))}${showDate ? ` · ${calendarDueRangeActive() ? formatFullDate(item.dueDate) : formatDate(item.dueDate)}` : ""}${Number(item.recurrenceTotal) > 1 ? ` · ${item.recurrenceType === "installment" ? "Parcela" : "Recorrente"} ${item.recurrenceIndex}/${item.recurrenceTotal}` : ""}</small></span><span class="agenda-item-value"><b class="${item.type === "income" ? "positive" : ""}">${item.type === "income" ? "+ " : ""}${money.format(item.amount)}</b><span class="pill ${status.className}">${status.label}</span></span></button>`;
+  return `<div class="agenda-item-wrap"><button type="button" class="agenda-item" data-edit="${item.id}">${categoryIconBadge(item)}<span class="agenda-item-copy"><b>${esc(item.description)}</b><small>${esc(categoryMeta(item))}${showDate ? ` · ${calendarDueRangeActive() ? formatFullDate(item.dueDate) : formatDate(item.dueDate)}` : ""}${Number(item.recurrenceTotal) > 1 ? ` · ${item.recurrenceType === "installment" ? "Parcela" : "Recorrente"} ${item.recurrenceIndex}/${item.recurrenceTotal}` : ""}</small></span><span class="agenda-item-value"><b class="${item.type === "income" ? "positive" : ""}">${item.type === "income" ? "+ " : ""}${money.format(item.amount)}</b><span class="pill ${status.className}">${status.label}</span></span></button>${quickPayButton(item)}</div>`;
+}
+
+function quickPayButton(item) {
+  return item.type === "expense" && item.status !== "paid" && canEdit()
+    ? `<button class="quick-pay-button" type="button" data-mark-paid="${item.id}">${icon("check")} Marcar como pago</button>`
+    : "";
 }
 
 function renderUsers() {
@@ -2058,6 +2064,22 @@ function bindShell() {
         const item = state.transactions.find((i) => i.id === b.dataset.edit);
         if (canEdit()) openRecordModal(item);
         else openRecordDetails(item);
+      }),
+  );
+  document.querySelectorAll("[data-mark-paid]").forEach(
+    (button) =>
+      (button.onclick = async (event) => {
+        event.stopPropagation();
+        const item = state.transactions.find((i) => i.id === button.dataset.markPaid);
+        if (!item || item.type !== "expense" || item.status === "paid") return;
+        busy(button, true);
+        try {
+          await ApiService.saveTransaction(state.selected.id, { status: "paid", paidDate: todayKey() }, state.user.uid, item.id);
+          toast(`${item.description} marcado como pago hoje.`);
+        } catch (error) {
+          serviceError(error);
+          busy(button, false);
+        }
       }),
   );
   document.querySelectorAll("[data-access]").forEach(
@@ -4037,6 +4059,7 @@ function icon(name) {
     gauge:
       '<path d="M4 15a8 8 0 0 1 16 0"/><path d="m12 15 4-5"/><circle cx="12" cy="15" r="1"/>',
     bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/>',
+    check: '<path d="m5 12 4 4L19 6"/>',
     wallet:
       '<path d="M4 6h14a2 2 0 0 1 2 2v10H4a2 2 0 0 1-2-2V6a3 3 0 0 1 3-3h12"/><path d="M16 11h4v4h-4a2 2 0 0 1 0-4Z"/>',
     "credit-card":

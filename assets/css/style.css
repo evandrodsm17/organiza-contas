@@ -788,6 +788,34 @@ aside {
   color: var(--green);
   font-weight: 600;
 }
+.agenda-item-wrap,
+.record-row-wrap {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.agenda-item-wrap .agenda-item,
+.record-row-wrap .record-row {
+  flex: 1;
+}
+.quick-pay-button {
+  align-self: center;
+  border: 1px solid var(--green);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--green);
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 700;
+  padding: 8px 10px;
+  white-space: nowrap;
+}
+.quick-pay-button:hover { background: var(--mint); }
+@media (max-width: 600px) {
+  .agenda-item-wrap,
+  .record-row-wrap { flex-direction: column; }
+  .quick-pay-button { align-self: stretch; }
+}
 .record-attachment-field {
   display: grid;
   gap: 10px;
