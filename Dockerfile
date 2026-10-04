@@ -5,7 +5,7 @@ COPY --chown=node:node package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts
 COPY --chown=node:node server ./server
 COPY --chown=node:node assets ./assets
-COPY --chown=node:node index.html favicon.ico site.webmanifest ./
+COPY --chown=node:node index.html favicon.ico site.webmanifest push-sw.js ./
 RUN mkdir /data && chown node:node /data
 USER node
 EXPOSE 3000

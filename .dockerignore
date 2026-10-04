@@ -8,4 +8,5 @@
 !index.html
 !favicon.ico
 !site.webmanifest
+!push-sw.js
 assets/js/firebase-*.js
