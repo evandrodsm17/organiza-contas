@@ -790,31 +790,58 @@ aside {
 }
 .agenda-item-wrap,
 .record-row-wrap {
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
 }
 .agenda-item-wrap .agenda-item,
 .record-row-wrap .record-row {
-  flex: 1;
+  min-width: 0;
 }
 .quick-pay-button {
-  align-self: center;
-  border: 1px solid var(--green);
-  border-radius: 8px;
-  background: transparent;
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid color-mix(in srgb, var(--green) 28%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mint) 72%, var(--surface));
   color: var(--green);
   font: inherit;
-  font-size: .82rem;
+  font-size: 11px;
   font-weight: 700;
-  padding: 8px 10px;
+  letter-spacing: .01em;
+  padding: 7px 11px;
   white-space: nowrap;
+  transition: background .18s ease, border-color .18s ease, box-shadow .18s ease, transform .18s ease;
 }
-.quick-pay-button:hover { background: var(--mint); }
+.quick-pay-button svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2.5;
+}
+.quick-pay-button:hover {
+  border-color: var(--green);
+  background: var(--green);
+  color: #fff;
+  transform: translateY(-1px);
+}
+.quick-pay-button:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--green) 28%, transparent);
+  outline-offset: 2px;
+}
+.quick-pay-button:active { transform: translateY(0); }
 @media (max-width: 600px) {
   .agenda-item-wrap,
-  .record-row-wrap { flex-direction: column; }
-  .quick-pay-button { align-self: stretch; }
+  .record-row-wrap { gap: 7px; }
+  .quick-pay-button {
+    min-width: 36px;
+    min-height: 36px;
+    padding: 8px;
+  }
+  .quick-pay-button span { display: none; }
 }
 .record-attachment-field {
   display: grid;

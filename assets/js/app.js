@@ -1636,7 +1636,7 @@ function agendaItem(item, showDate = false) {
 
 function quickPayButton(item) {
   return item.type === "expense" && item.status !== "paid" && canEdit()
-    ? `<button class="quick-pay-button" type="button" data-mark-paid="${item.id}">${icon("check")} Marcar como pago</button>`
+    ? `<button class="quick-pay-button" type="button" data-mark-paid="${item.id}" aria-label="Marcar ${attr(item.description)} como pago hoje" title="Marcar como pago hoje">${icon("check")}<span>Marcar pago</span></button>`
     : "";
 }
 
