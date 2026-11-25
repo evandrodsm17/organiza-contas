@@ -15,6 +15,27 @@ const cookieValue = (req, name) => (req.headers.cookie || '').split(';').map(x =
 const publicUser = user => ({ uid: user.id, email: user.email, displayName: user.name });
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json' };
 
+function managementAppearance(data) {
+  const color = data.color === undefined ? '#3157D5' : data.color;
+  const symbol = data.symbol === undefined ? 'wallet' : data.symbol;
+  if (typeof color !== 'string' || !/^#[0-9a-f]{6}$/i.test(color)) fail(400, 'Cor do gerenciamento inválida.');
+  if (!['wallet','home','users','credit-card','chart','calendar'].includes(symbol)) fail(400, 'Ícone do gerenciamento inválido.');
+  return { color, symbol };
+}
+function customCategories(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) fail(400, 'Categorias inválidas.');
+  const result = {};
+  for (const type of ['income','expense']) {
+    const entries = data[type] ?? [];
+    if (!Array.isArray(entries) || entries.length > 30) fail(400, 'Limite de 30 categorias personalizadas por tipo.');
+    const names = entries.map(value => text(value, 60));
+    const keys = names.map(value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase());
+    if (new Set(keys).size !== keys.length) fail(400, 'Categorias duplicadas.');
+    result[type] = names;
+  }
+  return result;
+}
+
 async function body(req, limit = 256 * 1024, raw = false) {
   let size = 0; const chunks = [];
   for await (const chunk of req) {
@@ -209,7 +230,7 @@ export async function createApp({ dataDir = process.env.DATA_DIR || './data', or
           if (method === 'POST') {
             if (user.role !== 'master' && !user.canCreateManagement) fail(403, 'Você não pode criar gerenciamentos.');
             const data = await body(req); const id = randomUUID(); const now = new Date().toISOString();
-            store.putManagement(id, { name: text(data.name), description: text(data.description || '', 500, false), currency: 'BRL', ownerId: user.id, memberIds: [user.id], memberRoles: { [user.id]: 'owner' }, createdAt: now, updatedAt: now });
+            store.putManagement(id, { name: text(data.name), description: text(data.description || '', 500, false), currency: 'BRL', appearance: managementAppearance(data.appearance || {}), customCategories: customCategories(data.customCategories || {}), ownerId: user.id, memberIds: [user.id], memberRoles: { [user.id]: 'owner' }, createdAt: now, updatedAt: now });
             return json(res, { id }, 201);
           }
         }
@@ -228,6 +249,8 @@ export async function createApp({ dataDir = process.env.DATA_DIR || './data', or
             const data = await body(req); const next = { ...current, updatedAt: now };
             if ('name' in data) next.name = text(data.name);
             if ('description' in data) next.description = text(data.description, 500, false);
+            if ('appearance' in data) next.appearance = managementAppearance(data.appearance || {});
+            if ('customCategories' in data) next.customCategories = customCategories(data.customCategories);
             store.putManagement(mid, next); return json(res, { ok: true });
           }
           if (parts[3] === 'share' && parts.length === 4 && method === 'POST') {
