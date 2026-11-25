@@ -576,7 +576,7 @@ function renderApp() {
   }).format(new Date(`${state.month}-01T12:00:00Z`));
   app.innerHTML = `<div class="app-shell"><aside><a class="brand brand-light" href="#"><img class="brand-logo" src="assets/logo.png" alt=""><span>OrganizaContas</span></a><div class="profile"><span>${initials(state.profile.name)}</span><div><b>${esc(state.profile.name)}</b><small>${state.profile.role === "master" ? "Administrador master" : "Usuário"}</small></div></div><nav>${nav("dashboard", "home", "Visão geral")}${nav("planning", "chart", "Planejamento", "planning-nav-item")}${nav("calendar", "calendar", "Agenda")}${nav("cards", "credit-card", "Cartões", "finance-cards-nav")}${nav("recurrences", "rotate-ccw", "Recorrências", "finance-cards-nav")}<button class="mobile-new-record" id="mobileNewRecord" aria-label="Criar novo lançamento" title="Novo lançamento" ${!canEdit() ? "disabled" : ""}>${icon("plus")}</button>${nav("settings", "settings", "Configurações")}<button class="nav-item mobile-nav-logout mobile-nav-voice" id="mobileNavVoice" type="button" aria-label="Executar comando de voz" title="Comando de voz">${icon("mic")}<small>Voz</small></button></nav><button class="logout voice-sidebar-command" id="desktopVoiceCommand" type="button">${icon("mic")} Comando de voz</button></aside>
   <main class="workspace"><header class="workspace-head"><div class="workspace-title"><span class="mobile-brand">OrganizaContas</span><h1>${viewTitle()}</h1><p>${state.selected ? esc(state.selected.name) : "Crie seu primeiro gerenciamento"}</p></div><div class="head-actions"><button type="button" class="finance-privacy-btn" id="financePrivacy" aria-pressed="${state.hideAmounts}" aria-label="${state.hideAmounts ? "Mostrar valores" : "Ocultar valores"}" title="${state.hideAmounts ? "Mostrar valores" : "Ocultar valores"}">${icon(state.hideAmounts ? "eye-off" : "eye")}<span>${state.hideAmounts ? "Mostrar" : "Ocultar"}</span></button>${managementSelect()}<button class="btn btn-primary" id="newRecord" ${!canEdit() ? "disabled" : ""}>${icon("plus")}<span>Novo lançamento</span></button></div></header>
-  ${state.view === "users" ? renderUsers() : state.view === "settings" ? renderSettings(monthName) : state.view === "planning" ? renderCashPlanning() : state.view === "calendar" ? renderCalendar(monthName) : state.view === "cards" ? renderCardsCenter(monthName) : state.view === "spaces" ? renderManagementCenter() : state.view === "recurrences" ? renderRecurrenceCenter() : renderDashboard(monthName)}</main></div><div id="modalRoot"></div>`;
+  ${state.view === "users" ? renderUsers() : state.view === "settings" ? renderSettings(monthName) : state.view === "planning" ? renderCashPlanning() : state.view === "calendar" ? renderCalendar(monthName) : state.view === "cards" ? renderCardsCenter(monthName) : state.view === "spaces" ? renderManagementCenter() : state.view === "recurrences" ? renderRecurrenceCenter() : state.view === "goals" ? renderGoalsCenter() : state.view === "comparison" ? renderMonthlyComparison() : renderDashboard(monthName)}</main></div><div id="modalRoot"></div>`;
   bindShell();
 }
 
@@ -598,6 +598,8 @@ function viewTitle() {
     cards: "Central de cartões",
     spaces: "Gerenciamentos",
     recurrences: "Recorrências e parcelamentos",
+    goals: "Metas financeiras",
+    comparison: "Comparativos mensais",
     settings: "Configurações",
     users: "Gestão de usuários",
   }[state.view];
@@ -1424,9 +1426,11 @@ function renderFinanceShortcuts(list) {
     ["expenses","Despesas por categoria","Entenda seus gastos",report.ranking.length + " categorias","dashboard","financeInsights",""],
     ["budget","Limite mensal","Acompanhe seu orçamento",expenseLimitForMonth() ? money.format(expenseLimitForMonth()) : "Não definido","settings","financeBudget",""],
     ["spaces","Gerenciamentos","Seus espaços compartilhados",state.managements.length + " espaços","spaces","",""],
-    ["calendar","Recorrências e parcelas","Compromissos recorrentes",new Set(state.transactions.filter(item=>item.recurrenceGroupId && item.type==="expense").map(item=>item.recurrenceGroupId)).size + " séries","recurrences","",""]
+    ["calendar","Recorrências e parcelas","Compromissos recorrentes",new Set(state.transactions.filter(item=>item.recurrenceGroupId && item.type==="expense").map(item=>item.recurrenceGroupId)).size + " séries","recurrences","",""],
+    ["budget","Metas financeiras","Acompanhe seus objetivos",(state.selected.goals || []).length + " metas","goals","",""],
+    ["planning","Comparativos mensais","Veja sua evolução","Últimos seis meses","comparison","",""]
   ];
-  return `<section class="finance-modules"><div class="finance-section-head"><div><h2>Meu espaço financeiro</h2><p>Atalhos para organizar seu dia a dia.</p></div></div><div class="finance-module-grid">${items.map(([kind,title,desc,badge,go,focus,layout])=>`<button type="button" class="finance-module finance-module-${kind}" data-go="${go}" ${focus ? 'data-focus="'+focus+'"' : ''} ${layout ? 'data-layout="'+layout+'"' : ''}><span class="finance-module-copy"><b>${title}</b><span>${desc}</span><small>${esc(badge)}</small></span>${financeArt(kind,go === "recurrences" ? "recurrences" : kind)}</button>`).join("")}</div></section>`;
+  return `<section class="finance-modules"><div class="finance-section-head"><div><h2>Meu espaço financeiro</h2><p>Atalhos para organizar seu dia a dia.</p></div></div><div class="finance-module-grid">${items.map(([kind,title,desc,badge,go,focus,layout])=>`<button type="button" class="finance-module finance-module-${kind}" data-go="${go}" ${focus ? 'data-focus="'+focus+'"' : ''} ${layout ? 'data-layout="'+layout+'"' : ''}><span class="finance-module-copy"><b>${title}</b><span>${desc}</span><small>${esc(badge)}</small></span>${financeArt(kind,go)}</button>`).join("")}</div></section>`;
 }
 function renderFinanceUpcoming(list) {
   const today = todayKey();
@@ -1729,6 +1733,45 @@ function renderCardVisual(card, preview = false) {
     : `<span class="payment-card-logo-fallback">${initials(card.name || "Cartão")}</span>`;
   return `<div class="payment-card ${preview ? "payment-card-preview" : ""}" style="--card-bg:${attr(background)};--card-ink:${attr(ink)}"><div class="payment-card-top"><span class="payment-card-brand">${icon("credit-card")}<b>${esc(card.name || "Nome do cartão")}</b></span><span class="payment-card-logo-wrap">${logo}</span></div><div class="payment-card-bottom"><span><small>TITULAR</small><b>${esc(card.holderName || "Nome do titular")}</b></span>${footer ? `<small>${esc(footer)}</small>` : ""}</div></div>`;
 }
+function renderGoalsCenter() {
+  if (!state.selected) return emptyManagement();
+  const goals = state.selected.goals || [];
+  return `<section class="finance-cards-intro"><h2>Meus objetivos</h2><p>Registre quanto já reservou para cada objetivo. Esses valores são informativos e não alteram seu saldo ou lançamentos.</p>${canEdit() ? '<button class="btn btn-primary" type="button" data-goal-new>+ Nova meta</button>' : ""}</section><section class="summary-grid">${summary("Valor-alvo total",goals.reduce((n,g)=>n+g.target,0),"info","◎")}${summary("Valor reservado",goals.reduce((n,g)=>n+g.saved,0),"success","✓")}${summary("Falta reservar",goals.reduce((n,g)=>n+Math.max(0,g.target-g.saved),0),"danger","◷")}</section><div class="finance-card-grid">${goals.map(goal=>{
+    const progress = Math.min(100,Math.max(0,Math.round(goal.saved/goal.target*100)));
+    return `<article class="panel finance-series-card"><div class="finance-series-head"><span class="finance-space-symbol">${icon("wallet")}</span><div><h2>${esc(goal.name)}</h2><small>${goal.deadline ? "Prazo: "+formatFullDate(goal.deadline) : "Sem prazo definido"}</small></div><span class="finance-series-status">${progress===100 ? "Concluída" : "Em andamento"}</span></div><div class="finance-series-totals"><div><small>Reservado</small><b>${money.format(goal.saved)}</b></div><div><small>Objetivo</small><b>${money.format(goal.target)}</b></div></div><div class="finance-card-progress" role="progressbar" aria-label="Progresso da meta" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span style="width:${progress}%"></span></div><small>${progress}% alcançado · Falta ${money.format(Math.max(0,goal.target-goal.saved))}</small>${canEdit() ? `<div class="finance-card-actions"><button class="btn btn-primary" type="button" data-goal-edit="${attr(goal.id)}">Atualizar meta</button><button class="btn btn-soft" type="button" data-goal-delete="${attr(goal.id)}">Excluir</button></div>` : ""}</article>`;
+  }).join("") || '<p>Nenhuma meta cadastrada neste gerenciamento.</p>'}</div>`;
+}
+function openGoalModal(goal = null) {
+  if (!canEdit()) return;
+  const mid = state.selected.id;
+  showModal(`<form class="modal" id="financeGoalForm"><button class="modal-close" type="button">×</button><h2>${goal ? "Atualizar meta" : "Nova meta financeira"}</h2><label>Nome<input name="name" required maxlength="80" value="${attr(goal?.name || "")}"></label><label>Valor-alvo (R$)<input name="target" type="number" min="0.01" max="1000000000000" step="0.01" required value="${attr(goal?.target ?? "")}"></label><label>Total já reservado (R$)<input name="saved" type="number" min="0" max="1000000000000" step="0.01" required value="${attr(goal?.saved ?? 0)}"></label><label>Prazo opcional<input name="deadline" type="date" value="${attr(goal?.deadline || "")}"></label><p>Informe o total acumulado, não apenas o último depósito. A meta não movimenta seu caixa.</p><button class="btn btn-primary" type="submit">Salvar meta</button></form>`);
+  document.querySelector("#financeGoalForm").onsubmit = async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const button = form.querySelector("button[type=submit]");
+    const data = Object.fromEntries(new FormData(form));
+    data.target=Number(data.target); data.saved=Number(data.saved);
+    busy(button,true);
+    try {
+      if(goal) await ApiService.updateGoal(mid,goal.id,data); else await ApiService.createGoal(mid,data);
+      closeModal(); toast("Meta salva.");
+    } catch(error) { serviceError(error); busy(button,false); }
+  };
+}
+function renderMonthlyComparison() {
+  if (!state.selected) return emptyManagement();
+  const [year,month] = state.month.split("-").map(Number);
+  const months = Array.from({length:6},(_,i)=>{
+    const d = new Date(Date.UTC(year,month-1-5+i,1));
+    const key = d.toISOString().slice(0,7);
+    const items = state.transactions.filter(item=>(item.dueDate || item.plannedDate || "").startsWith(key));
+    const income=sum(items.filter(item=>item.type==="income")), expense=sum(items.filter(item=>item.type==="expense"));
+    return {key,label:new Intl.DateTimeFormat("pt-BR",{month:"short",year:"numeric",timeZone:"UTC"}).format(d),income,expense,balance:income-expense,count:items.length};
+  });
+  const current=months.at(-1), previous=months.at(-2);
+  const max=Math.max(1,...months.flatMap(m=>[m.income,m.expense]));
+  return `<div class="content-head">${monthControl()}</div><section class="finance-cards-intro"><h2>Evolução financeira</h2><p>Últimos seis meses até o período selecionado. Valores previstos por data de vencimento ou recebimento registrada, não extratos bancários.</p></section><section class="summary-grid">${summary("Variação das entradas",current.income-previous.income,"info","↗")}${summary("Variação das despesas",current.expense-previous.expense,"danger","↘")}${summary("Variação do saldo previsto",current.balance-previous.balance,"info","=")}</section><article class="panel finance-comparison"><h2>Entradas e despesas</h2><p>Comparação mensal · verde: entradas · laranja: despesas</p>${months.map(m=>`<div class="finance-comparison-row"><b>${esc(m.label)}</b><div class="finance-comparison-bars"><div><span style="width:${m.income/max*100}%"></span><small>${money.format(m.income)}</small></div><div><span style="width:${m.expense/max*100}%"></span><small>${money.format(m.expense)}</small></div></div><div><small>Saldo previsto</small><strong>${money.format(m.balance)}</strong><small>${m.count} lançamento(s)</small></div></div>`).join("")}</article><article class="panel finance-comparison"><h2>Despesas por categoria no mês</h2>${renderExpenseInsights(new Intl.DateTimeFormat("pt-BR",{month:"long",year:"numeric",timeZone:"UTC"}).format(new Date(state.month+"-01T12:00:00Z")))}</article>`;
+}
 function renderRecurrenceCenter() {
   if (!state.selected) return emptyManagement();
   const groups = new Map();
@@ -1820,6 +1863,17 @@ function empty(text) {
 }
 
 function bindShell() {
+  document.querySelector("[data-goal-new]")?.addEventListener("click",()=>openGoalModal());
+  document.querySelectorAll("[data-goal-edit]").forEach(button=>button.onclick=()=>{
+    const goal=state.selected?.goals?.find(g=>g.id===button.dataset.goalEdit);
+    if(goal) openGoalModal(goal);
+  });
+  document.querySelectorAll("[data-goal-delete]").forEach(button=>button.onclick=async()=>{
+    if(!canEdit() || !confirm("Excluir esta meta? Os lançamentos não serão alterados.")) return;
+    busy(button,true);
+    try { await ApiService.deleteGoal(state.selected.id,button.dataset.goalDelete); toast("Meta excluída."); }
+    catch(error){serviceError(error);busy(button,false);}
+  });
   document.querySelector("#financePrivacy")?.addEventListener("click", () => {
     state.hideAmounts = !state.hideAmounts;
     localStorage.setItem("organiza-hide-amounts", String(state.hideAmounts));
