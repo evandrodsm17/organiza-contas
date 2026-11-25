@@ -572,9 +572,9 @@ function renderApp() {
     year: "numeric",
     timeZone: "UTC",
   }).format(new Date(`${state.month}-01T12:00:00Z`));
-  app.innerHTML = `<div class="app-shell"><aside><a class="brand brand-light" href="#"><img class="brand-logo" src="assets/logo.png" alt=""><span>OrganizaContas</span></a><div class="profile"><span>${initials(state.profile.name)}</span><div><b>${esc(state.profile.name)}</b><small>${state.profile.role === "master" ? "Administrador master" : "Usuário"}</small></div></div><nav>${nav("dashboard", "home", "Visão geral")}${nav("planning", "chart", "Planejamento", "planning-nav-item")}${nav("calendar", "calendar", "Agenda")}<button class="mobile-new-record" id="mobileNewRecord" aria-label="Criar novo lançamento" title="Novo lançamento" ${!canEdit() ? "disabled" : ""}>${icon("plus")}</button>${nav("settings", "settings", "Configurações")}<button class="nav-item mobile-nav-logout mobile-nav-voice" id="mobileNavVoice" type="button" aria-label="Executar comando de voz" title="Comando de voz">${icon("mic")}<small>Voz</small></button></nav><button class="logout voice-sidebar-command" id="desktopVoiceCommand" type="button">${icon("mic")} Comando de voz</button></aside>
+  app.innerHTML = `<div class="app-shell"><aside><a class="brand brand-light" href="#"><img class="brand-logo" src="assets/logo.png" alt=""><span>OrganizaContas</span></a><div class="profile"><span>${initials(state.profile.name)}</span><div><b>${esc(state.profile.name)}</b><small>${state.profile.role === "master" ? "Administrador master" : "Usuário"}</small></div></div><nav>${nav("dashboard", "home", "Visão geral")}${nav("planning", "chart", "Planejamento", "planning-nav-item")}${nav("calendar", "calendar", "Agenda")}${nav("cards", "credit-card", "Cartões", "finance-cards-nav")}<button class="mobile-new-record" id="mobileNewRecord" aria-label="Criar novo lançamento" title="Novo lançamento" ${!canEdit() ? "disabled" : ""}>${icon("plus")}</button>${nav("settings", "settings", "Configurações")}<button class="nav-item mobile-nav-logout mobile-nav-voice" id="mobileNavVoice" type="button" aria-label="Executar comando de voz" title="Comando de voz">${icon("mic")}<small>Voz</small></button></nav><button class="logout voice-sidebar-command" id="desktopVoiceCommand" type="button">${icon("mic")} Comando de voz</button></aside>
   <main class="workspace"><header class="workspace-head"><div class="workspace-title"><span class="mobile-brand">OrganizaContas</span><h1>${viewTitle()}</h1><p>${state.selected ? esc(state.selected.name) : "Crie seu primeiro gerenciamento"}</p></div><div class="head-actions">${managementSelect()}<button class="btn btn-primary" id="newRecord" ${!canEdit() ? "disabled" : ""}>${icon("plus")}<span>Novo lançamento</span></button></div></header>
-  ${state.view === "users" ? renderUsers() : state.view === "settings" ? renderSettings(monthName) : state.view === "planning" ? renderCashPlanning() : state.view === "calendar" ? renderCalendar(monthName) : renderDashboard(monthName)}</main></div><div id="modalRoot"></div>`;
+  ${state.view === "users" ? renderUsers() : state.view === "settings" ? renderSettings(monthName) : state.view === "planning" ? renderCashPlanning() : state.view === "calendar" ? renderCalendar(monthName) : state.view === "cards" ? renderCardsCenter(monthName) : renderDashboard(monthName)}</main></div><div id="modalRoot"></div>`;
   bindShell();
 }
 
@@ -593,6 +593,7 @@ function viewTitle() {
     dashboard: "Visão geral",
     planning: "Planejamento de caixa",
     calendar: "Agenda financeira",
+    cards: "Central de cartões",
     settings: "Configurações",
     users: "Gestão de usuários",
   }[state.view];
@@ -1391,7 +1392,7 @@ function renderFinanceShortcuts(list) {
   const report = expenseCategoryReport();
   const items = [
     ["calendar","Agenda financeira","Contas e vencimentos",pending + " pendentes","calendar","", "agenda"],
-    ["cards","Meus cartões","Cartões e faturas",cards + " ativos","settings","financeCards",""],
+    ["cards","Meus cartões","Cartões e faturas",cards + " ativos","cards","",""],
     ["planning","Planejamento de caixa","Organize seus recursos","Simular pagamentos","planning","",""],
     ["expenses","Despesas por categoria","Entenda seus gastos",report.ranking.length + " categorias","dashboard","financeInsights",""],
     ["budget","Limite mensal","Acompanhe seu orçamento",expenseLimitForMonth() ? money.format(expenseLimitForMonth()) : "Não definido","settings","financeBudget",""],
@@ -1406,7 +1407,7 @@ function renderFinanceUpcoming(list) {
   return `<article class="panel finance-upcoming"><div class="finance-side-title"><span>${icon("calendar")}</span><h2>Próximos vencimentos</h2></div>${overdue.length ? `<button type="button" class="finance-overdue" data-summary="pending">${overdue.length} em atraso · ${money.format(sum(overdue))}</button>` : ""}<div class="finance-upcoming-list">${pending.length ? pending.slice(0,4).map(item=>`<button type="button" class="finance-due-row" data-edit="${attr(item.id)}">${categoryIconBadge(item)}<span><b>${esc(item.description)}</b><small>${formatDate(item.dueDate)}</small></span><strong>${money.format(item.amount)}</strong></button>`).join("") : '<p class="finance-side-empty">Nenhum vencimento futuro pendente neste período.</p>'}</div><button type="button" class="finance-side-link" data-go="calendar" data-layout="agenda">Ver agenda completa <span aria-hidden="true">→</span></button></article>`;
 }
 function renderFinanceActions() {
-  return `<article class="panel finance-quick"><div class="finance-side-title"><span>${icon("plus")}</span><h2>Ações rápidas</h2></div><div class="finance-quick-grid"><button type="button" data-finance-new ${canEdit() ? "" : "disabled"}>${icon("plus")}<span>Novo lançamento</span></button><button type="button" data-go="planning">${icon("chart")}<span>Planejar caixa</span></button><button type="button" data-go="settings" data-focus="financeCards">${icon("credit-card")}<span>Meus cartões</span></button><button type="button" data-go="settings" data-focus="financeSpaces">${icon("wallet")}<span>Gerenciamentos</span></button></div></article>`;
+  return `<article class="panel finance-quick"><div class="finance-side-title"><span>${icon("plus")}</span><h2>Ações rápidas</h2></div><div class="finance-quick-grid"><button type="button" data-finance-new ${canEdit() ? "" : "disabled"}>${icon("plus")}<span>Novo lançamento</span></button><button type="button" data-go="planning">${icon("chart")}<span>Planejar caixa</span></button><button type="button" data-go="cards">${icon("credit-card")}<span>Meus cartões</span></button><button type="button" data-go="settings" data-focus="financeSpaces">${icon("wallet")}<span>Gerenciamentos</span></button></div></article>`;
 }
 function renderDashboard(monthName) {
   if (!state.selected) return emptyManagement();
@@ -1700,6 +1701,21 @@ function renderCardVisual(card, preview = false) {
     : `<span class="payment-card-logo-fallback">${initials(card.name || "Cartão")}</span>`;
   return `<div class="payment-card ${preview ? "payment-card-preview" : ""}" style="--card-bg:${attr(background)};--card-ink:${attr(ink)}"><div class="payment-card-top"><span class="payment-card-brand">${icon("credit-card")}<b>${esc(card.name || "Nome do cartão")}</b></span><span class="payment-card-logo-wrap">${logo}</span></div><div class="payment-card-bottom"><span><small>TITULAR</small><b>${esc(card.holderName || "Nome do titular")}</b></span>${footer ? `<small>${esc(footer)}</small>` : ""}</div></div>`;
 }
+function renderCardsCenter(monthName) {
+  if (!state.selected) return emptyManagement();
+  const expenses = monthTransactions().filter(item => item.type === "expense" && item.category === "Cartão");
+  const active = state.cards.filter(card => card.active !== false);
+  const archived = state.cards.filter(card => card.active === false);
+  const renderCard = (card) => {
+    const items = expenses.filter(item => item.cardId === card.id);
+    const total = sum(items);
+    const paid = sum(items.filter(item => item.status === "paid"));
+    const pending = sum(items.filter(item => item.status !== "paid"));
+    return `<article class="panel finance-card-detail">${renderCardVisual(card)}<div class="finance-card-stats"><div><small>Faturas registradas</small><strong>${money.format(total)}</strong></div><div><small>Pago</small><b>${money.format(paid)}</b></div><div><small>A pagar</small><b>${money.format(pending)}</b></div></div><div class="finance-card-progress" role="progressbar" aria-label="Percentual pago" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${total > 0 ? Math.min(100, Math.max(0, Math.round(paid/total*100))) : 0}"><span style="width:${total > 0 ? Math.min(100, Math.max(0, paid/total*100)) : 0}%"></span></div><small class="finance-card-count">${items.length} lançamento(s) no período</small><div class="finance-card-actions"><button type="button" class="btn btn-soft" data-finance-card-agenda="${attr(card.id)}">Ver faturas</button>${canEdit() ? `<button type="button" class="card-action" data-edit-card="${attr(card.id)}">Editar</button><button type="button" class="card-action" data-toggle-card="${attr(card.id)}" data-card-active="${card.active === false ? "true" : "false"}">${card.active === false ? "Reativar" : "Arquivar"}</button>` : ""}</div></article>`;
+  };
+  const unassigned = expenses.filter(item => !state.cards.some(card => card.id === item.cardId));
+  return `<div class="content-head">${monthControl(monthName)}${canEdit() ? '<button type="button" class="btn btn-primary" id="newCard">+ Adicionar cartão</button>' : ""}</div><section class="finance-cards-intro"><h2>Meus cartões</h2><p>Veja os valores registrados para cada cartão no período selecionado. Os valores não representam o limite ou saldo informado pelo banco.</p></section><section class="summary-grid">${summary("Faturas registradas",sum(expenses),"info","▤")}${summary("Pago",sum(expenses.filter(item=>item.status==="paid")),"success","✓")}${summary("A pagar",sum(expenses.filter(item=>item.status!=="paid")),"danger","◷")}</section><h2 class="finance-card-section-title">Cartões ativos</h2><div class="finance-card-grid">${active.map(renderCard).join("") || '<p>Nenhum cartão ativo cadastrado.</p>'}</div>${archived.length ? `<details class="finance-archived"><summary>Cartões arquivados (${archived.length})</summary><div class="finance-card-grid">${archived.map(renderCard).join("")}</div></details>` : ""}${unassigned.length ? `<article class="panel finance-unassigned"><h2>Faturas sem cartão vinculado</h2><p>${unassigned.length} lançamento(s) · ${money.format(sum(unassigned))}</p>${unassigned.map(recordRow).join("")}</article>` : ""}`;
+}
 function renderCardsSettings() {
   if (!state.selected) {
     return `<div class="settings-empty"><p>Selecione um gerenciamento para cadastrar cartões.</p></div>`;
@@ -1754,6 +1770,15 @@ function empty(text) {
 }
 
 function bindShell() {
+  document.querySelectorAll("[data-finance-card-agenda]").forEach(button => {
+    button.onclick = () => {
+      state.calendarFilters = {...defaultCalendarFilters(), expenseCategory: "Cartão", cardId: button.dataset.financeCardAgenda};
+      state.calendarLayout = "agenda";
+      localStorage.setItem("organiza-calendar-layout", "agenda");
+      state.view = "calendar";
+      renderApp();
+    };
+  });
   document.querySelector("[data-finance-new]")?.addEventListener("click", () => { if (canEdit()) openRecordModal(); });
   if (state.view === "settings") {
     document.querySelector(".settings-grid")?.insertAdjacentHTML("beforeend", renderPushSettingsCard());
