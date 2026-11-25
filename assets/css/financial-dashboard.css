@@ -74,3 +74,23 @@ html[data-theme="dark"] .finance-quick-grid button .ui-icon{color:#86b9ff}
 @media(max-width:900px){.finance-dashboard-main .finance-module-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.finance-dashboard-side{grid-template-columns:minmax(0,1fr)}.finance-dashboard-main .finance-module .finance-art{width:65px}.finance-dashboard-main .finance-module{padding:12px}.finance-dashboard-layout{gap:12px}}
 @media(max-width:340px){.finance-dashboard-main .finance-module-grid{grid-template-columns:1fr}}
+
+/* Dedicated card center */
+.finance-cards-intro{margin:18px 0}.finance-cards-intro h2{margin:0 0 6px}.finance-cards-intro p{font-size:13px;color:var(--muted);margin:0}
+.finance-card-section-title{font-size:19px;margin:24px 0 12px}
+.finance-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr));gap:16px}
+.finance-card-detail{display:flex;flex-direction:column;gap:13px;padding:16px;min-width:0}
+.finance-card-detail .payment-card{width:100%;max-width:none}
+.finance-card-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.finance-card-stats>div{display:grid;gap:4px;min-width:0}
+.finance-card-stats>div:first-child{grid-column:1/-1}
+.finance-card-stats small,.finance-card-count{font-size:12px;color:var(--muted)}
+.finance-card-stats strong{font-size:25px;overflow-wrap:anywhere}
+.finance-card-stats b{font-size:15px;overflow-wrap:anywhere}
+.finance-card-progress{height:7px;border-radius:99px;background:var(--line);overflow:hidden}
+.finance-card-progress span{display:block;height:100%;background:#268cbd;border-radius:inherit}
+.finance-card-actions{display:flex;flex-wrap:wrap;align-items:center;gap:9px}
+.finance-archived{margin-top:24px}.finance-archived summary{cursor:pointer;font-weight:700;margin-bottom:12px}
+.finance-unassigned{margin-top:20px;padding:16px}.finance-unassigned h2{font-size:18px}.finance-unassigned p{color:var(--muted);font-size:13px}
+/* Preserve existing mobile bottom navigation; cards remain accessible from dashboard. */
+@media(max-width:760px){.app-shell aside nav .finance-cards-nav{display:none}}
