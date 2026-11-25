@@ -1403,18 +1403,11 @@ function renderCashPlanning() {
 }
 
 function financeArt(kind, instance = kind) {
-  const shapes = {
-    wallet: '<rect x="20" y="39" width="102" height="66" rx="15" fill="url(#BLUE)" stroke="#8bc5ff" stroke-width="2"/><path d="M25 45L100 26Q110 24 114 39" fill="#234ca0" stroke="#7bbaff" stroke-width="2"/><rect x="88" y="61" width="43" height="25" rx="8" fill="#142e64" stroke="#7eb5ff"/><circle cx="99" cy="73" r="4" fill="#ffbb51"/><circle cx="112" cy="24" r="17" fill="url(#GOLD)" stroke="#fff0b1" stroke-width="2"/>',
-    calendar: '<rect x="29" y="25" width="88" height="84" rx="13" fill="url(#BLUE)" stroke="#a8d3ff" stroke-width="2"/><path d="M30 47h86" stroke="#153776" stroke-width="14"/><path d="M49 17v19m47-19v19" stroke="#d5e8ff" stroke-width="7" stroke-linecap="round"/><g fill="#b6d3ff"><rect x="42" y="60" width="16" height="12" rx="3"/><rect x="65" y="60" width="16" height="12" rx="3"/><rect x="88" y="60" width="16" height="12" rx="3"/><rect x="42" y="79" width="16" height="12" rx="3"/></g><circle cx="104" cy="94" r="20" fill="url(#GOLD)"/><path d="m95 94 6 6 12-13" fill="none" stroke="#fff5d4" stroke-width="4"/>',
-    cards: '<rect x="20" y="28" width="96" height="59" rx="11" fill="#7770df" stroke="#b4afff" stroke-width="2" transform="rotate(-12 68 57)"/><g transform="rotate(9 82 77)"><rect x="34" y="48" width="96" height="60" rx="11" fill="url(#BLUE)" stroke="#a9ccff" stroke-width="2"/><rect x="45" y="63" width="21" height="16" rx="4" fill="url(#GOLD)"/><path d="M46 92h39" stroke="#d5e7ff" stroke-width="4" stroke-linecap="round"/><circle cx="111" cy="92" r="9" fill="#ffb83d"/><circle cx="119" cy="92" r="9" fill="#ffd77a" opacity=".8"/></g>',
-    planning: '<rect x="23" y="23" width="100" height="87" rx="12" fill="#164b63" stroke="#67d5dd" stroke-width="2"/><rect x="37" y="76" width="17" height="23" rx="4" fill="#4ecad2"/><rect x="61" y="60" width="17" height="39" rx="4" fill="#72e1e5"/><rect x="85" y="41" width="17" height="58" rx="4" fill="url(#GOLD)"/><path d="m33 65 28-22 18 4 31-28m-15 0h15v15" fill="none" stroke="#c7ffff" stroke-width="4"/>',
-    expenses: '<circle cx="74" cy="65" r="43" fill="#b45b73" stroke="#ffc0b6" stroke-width="2"/><path d="M74 65V22A43 43 0 0 1 117 65Z" fill="url(#GOLD)"/><path d="M74 65h43A43 43 0 0 1 40 91Z" fill="url(#BLUE)"/><circle cx="74" cy="65" r="19" fill="#56374d" stroke="#d39ab0" stroke-width="2"/>',
-    budget: '<circle cx="74" cy="66" r="43" fill="#183b66" stroke="#8cc6ff" stroke-width="2"/><path d="M40 78a36 36 0 0 1 68 0" fill="none" stroke="#5298e8" stroke-width="10" stroke-linecap="round"/><path d="M92 42a36 36 0 0 1 16 36" fill="none" stroke="#ffb64c" stroke-width="10" stroke-linecap="round"/><path d="m74 69 23-23" stroke="#ffe1a1" stroke-width="5" stroke-linecap="round"/><circle cx="74" cy="69" r="7" fill="url(#GOLD)"/>',
-    spaces: '<path d="M19 58 72 20l53 38v48H19Z" fill="url(#BLUE)" stroke="#93c6ff" stroke-width="2"/><path d="m13 60 59-43 59 43" stroke="#ffba53" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><rect x="61" y="73" width="25" height="33" rx="4" fill="#17366d"/><rect x="30" y="69" width="21" height="19" rx="3" fill="#c2e3ff"/><rect x="97" y="69" width="19" height="19" rx="3" fill="#c2e3ff"/>'
-  };
-  const id = 'oc-' + instance;
-  return '<svg class="finance-art" viewBox="0 0 150 125" aria-hidden="true" focusable="false"><defs><linearGradient id="'+id+'-blue" x2="0.8" y2="1"><stop stop-color="#65b6ff"/><stop offset=".45" stop-color="#286ee1"/><stop offset="1" stop-color="#153477"/></linearGradient><linearGradient id="'+id+'-gold" x2="0.8" y2="1"><stop stop-color="#fff0a5"/><stop offset=".5" stop-color="#ffb63e"/><stop offset="1" stop-color="#d87915"/></linearGradient></defs><ellipse cx="75" cy="113" rx="52" ry="7" fill="#000" opacity=".2"/>'+shapes[kind].replaceAll('BLUE',id+'-blue').replaceAll('GOLD',id+'-gold')+'</svg>';
+  const names = ["wallet","calendar","cards","planning","expenses","budget","spaces","recurrences","goals","comparison","security","checklist"];
+  const asset = names.includes(kind) ? kind : "wallet";
+  return `<img class="finance-art" src="/assets/images/finance/${asset}.png" alt="" aria-hidden="true" width="256" height="256" decoding="async">`;
 }
+
 function renderFinanceHome(total) {
   const balance = total.income - total.expense;
   const firstName = String(state.profile.name || "").trim().split(/\s+/)[0];
@@ -1431,11 +1424,11 @@ function renderFinanceShortcuts(list) {
     ["expenses","Despesas por categoria","Entenda seus gastos",report.ranking.length + " categorias","dashboard","financeInsights",""],
     ["budget","Limite mensal","Acompanhe seu orçamento",expenseLimitForMonth() ? money.format(expenseLimitForMonth()) : "Não definido","settings","financeBudget",""],
     ["spaces","Gerenciamentos","Seus espaços compartilhados",state.managements.length + " espaços","spaces","",""],
-    ["calendar","Recorrências e parcelas","Compromissos recorrentes",new Set(state.transactions.filter(item=>item.recurrenceGroupId && item.type==="expense").map(item=>item.recurrenceGroupId)).size + " séries","recurrences","",""],
-    ["budget","Metas financeiras","Acompanhe seus objetivos",(state.selected.goals || []).length + " metas","goals","",""],
-    ["planning","Comparativos mensais","Veja sua evolução","Últimos seis meses","comparison","",""]
+    ["recurrences","Recorrências e parcelas","Compromissos recorrentes",new Set(state.transactions.filter(item=>item.recurrenceGroupId && item.type==="expense").map(item=>item.recurrenceGroupId)).size + " séries","recurrences","",""],
+    ["goals","Metas financeiras","Acompanhe seus objetivos",(state.selected.goals || []).length + " metas","goals","",""],
+    ["comparison","Comparativos mensais","Veja sua evolução","Últimos seis meses","comparison","",""]
   ];
-  return `<section class="finance-modules"><div class="finance-section-head"><div><h2>Meu espaço financeiro</h2><p>Atalhos para organizar seu dia a dia.</p></div></div><div class="finance-module-grid">${items.map(([kind,title,desc,badge,go,focus,layout])=>`<button type="button" class="finance-module finance-module-${kind}" data-go="${go}" ${focus ? 'data-focus="'+focus+'"' : ''} ${layout ? 'data-layout="'+layout+'"' : ''}><span class="finance-module-copy"><b>${title}</b><span>${desc}</span><small>${esc(badge)}</small></span>${financeArt(kind,go)}</button>`).join("")}</div></section>`;
+  return `<section class="finance-modules"><div class="finance-section-head"><div><h2>Meu espaço financeiro</h2><p>Atalhos para organizar seu dia a dia.</p></div></div><div class="finance-module-grid">${items.map(([kind,title,desc,badge,go,focus,layout])=>`<button type="button" class="finance-module finance-module-${kind}" data-go="${go}" ${focus ? 'data-focus="'+focus+'"' : ''} ${layout ? 'data-layout="'+layout+'"' : ''}><span class="finance-module-copy"><b>${title}</b><span>${desc}</span><small>${esc(badge)}</small></span>${financeArt(kind)}</button>`).join("")}</div></section>`;
 }
 function renderFinanceUpcoming(list) {
   const today = todayKey();

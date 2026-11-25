@@ -448,7 +448,7 @@ export async function createApp({ dataDir = process.env.DATA_DIR || './data', or
       }
       if (!['GET','HEAD'].includes(method)) fail(405, 'Método não permitido.');
       const relative = path === '/' ? 'index.html' : decodeURIComponent(path).slice(1);
-      if (!['index.html','favicon.ico','site.webmanifest','push-sw.js'].includes(relative) && !/^assets\/(css|js|icons)\/[a-z0-9._-]+$/i.test(relative) && relative !== 'assets/logo.png') fail(404, 'Arquivo não encontrado.');
+      if (!['index.html','favicon.ico','site.webmanifest','push-sw.js'].includes(relative) && !/^assets\/(css|js|icons)\/[a-z0-9._-]+$/i.test(relative) && !/^assets\/images\/finance\/(wallet|calendar|cards|planning|expenses|budget|spaces|recurrences|goals|comparison|security|checklist)\.png$/.test(relative) && relative !== 'assets/logo.png') fail(404, 'Arquivo não encontrado.');
       if (relative.includes('firebase-')) fail(404, 'Arquivo não encontrado.');
       const file = resolve(root, relative);
       if (!file.startsWith(root.endsWith(sep) ? root : root + sep)) fail(404, 'Arquivo não encontrado.');
