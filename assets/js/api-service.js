@@ -94,5 +94,11 @@ export const ApiService = {
   createManagedUser: data => request('/users', 'POST', data),
   shareManagement: ({ managementId, email, role = 'editor' }) => request(`${managementPath(managementId)}/share`, 'POST', { email, role }),
   observeUsers: (callback, onError) => observe('/users', callback, onError),
-  setUserAccess: (uid, data) => request(`/users/${encodeURIComponent(uid)}`, 'PATCH', data)
+  setUserAccess: (uid, data) => request(`/users/${encodeURIComponent(uid)}`, 'PATCH', data),
+  resetUserPassword: uid => request(`/users/${encodeURIComponent(uid)}/reset-password`, 'POST', {}),
+  revokeUserSessions: uid => request(`/users/${encodeURIComponent(uid)}/revoke-sessions`, 'POST', {}),
+  async changePassword(currentPassword, password) {
+    const user = await request('/auth/change-password', 'POST', {currentPassword,password});
+    currentUid = user.uid; await authCallback(user); return user;
+  }
 };
