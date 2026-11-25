@@ -287,3 +287,12 @@ html[data-theme="dark"] .admin-user-card .admin-user-warning{color:#ffb85e}
   .finance-dashboard-layout{grid-template-columns:minmax(0,1fr)}
   .finance-dashboard-side{grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr))}
 }
+
+/* Desktop account shortcut */
+.profile-logout{display:none}
+@media(min-width:761px){
+  .app-shell>aside .profile{max-width:260px}
+  .app-shell>aside .profile-logout{display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;padding:0;border:1px solid #ffffff24;border-radius:10px;background:transparent;color:#c2d3eb;cursor:pointer}
+  .app-shell>aside .profile-logout:hover{color:#ffaaa0;background:#ef64641c;border-color:#ef646480}
+  .app-shell>aside .profile-logout:focus-visible{outline:2px solid #83baff;outline-offset:2px}
+}
