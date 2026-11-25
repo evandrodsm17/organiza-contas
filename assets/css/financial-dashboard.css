@@ -114,3 +114,23 @@ html[data-theme="dark"] .finance-quick-grid button .ui-icon{color:#86b9ff}
 .finance-category-grid textarea{width:100%;resize:vertical}
 .finance-appearance-fields input[type="color"]{width:100%;min-height:42px;padding:5px}
 @media(max-width:600px){.finance-category-grid{grid-template-columns:1fr}.finance-space-card,.finance-category-panel{padding:15px}}
+
+.finance-privacy-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface,var(--white));color:var(--ink);white-space:nowrap;font-size:12px;min-height:40px}
+.finance-privacy-btn .ui-icon{width:19px;height:19px}
+.finance-privacy-btn[aria-pressed="true"]{border-color:#b58036}
+.finance-privacy-btn:focus-visible{outline:2px solid #e89a2c;outline-offset:2px}
+.finance-series-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,325px),1fr));gap:16px}
+.finance-series-card{display:flex;flex-direction:column;gap:13px;padding:17px;min-width:0}
+.finance-series-head{display:flex;align-items:center;gap:10px;min-width:0}
+.finance-series-head>div{flex:1;min-width:0}
+.finance-series-head h2{font-size:16px;margin:0 0 4px;overflow-wrap:anywhere}
+.finance-series-card small,.finance-series-next span{font-size:12px;color:var(--muted)}
+.finance-series-status{font-size:11px;border:1px solid var(--line);border-radius:99px;padding:4px 7px;white-space:nowrap}
+.finance-series-totals{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.finance-series-totals>div{display:grid;gap:4px;min-width:0}
+.finance-series-totals b{font-size:17px;overflow-wrap:anywhere}
+.finance-series-next{display:flex;flex-wrap:wrap;justify-content:space-between;gap:7px;border-top:1px solid var(--line);padding-top:12px;font-size:13px}
+.finance-series-card details summary{cursor:pointer;font-size:13px;color:var(--ink);padding:5px 0}
+.finance-series-records{display:grid;gap:6px;margin-top:10px}
+.finance-series-records .record-row{min-width:0}
+@media(max-width:760px){.finance-privacy-btn span{display:none}.finance-privacy-btn{padding:8px;min-height:36px}.finance-series-grid{grid-template-columns:1fr}}
