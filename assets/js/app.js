@@ -574,7 +574,7 @@ function renderApp() {
   }).format(new Date(`${state.month}-01T12:00:00Z`));
   app.innerHTML = `<div class="app-shell"><aside><a class="brand brand-light" href="#"><img class="brand-logo" src="assets/logo.png" alt=""><span>OrganizaContas</span></a><div class="profile"><span>${initials(state.profile.name)}</span><div><b>${esc(state.profile.name)}</b><small>${state.profile.role === "master" ? "Administrador master" : "Usuário"}</small></div></div><nav>${nav("dashboard", "home", "Visão geral")}${nav("planning", "chart", "Planejamento", "planning-nav-item")}${nav("calendar", "calendar", "Agenda")}${nav("cards", "credit-card", "Cartões", "finance-cards-nav")}<button class="mobile-new-record" id="mobileNewRecord" aria-label="Criar novo lançamento" title="Novo lançamento" ${!canEdit() ? "disabled" : ""}>${icon("plus")}</button>${nav("settings", "settings", "Configurações")}<button class="nav-item mobile-nav-logout mobile-nav-voice" id="mobileNavVoice" type="button" aria-label="Executar comando de voz" title="Comando de voz">${icon("mic")}<small>Voz</small></button></nav><button class="logout voice-sidebar-command" id="desktopVoiceCommand" type="button">${icon("mic")} Comando de voz</button></aside>
   <main class="workspace"><header class="workspace-head"><div class="workspace-title"><span class="mobile-brand">OrganizaContas</span><h1>${viewTitle()}</h1><p>${state.selected ? esc(state.selected.name) : "Crie seu primeiro gerenciamento"}</p></div><div class="head-actions">${managementSelect()}<button class="btn btn-primary" id="newRecord" ${!canEdit() ? "disabled" : ""}>${icon("plus")}<span>Novo lançamento</span></button></div></header>
-  ${state.view === "users" ? renderUsers() : state.view === "settings" ? renderSettings(monthName) : state.view === "planning" ? renderCashPlanning() : state.view === "calendar" ? renderCalendar(monthName) : state.view === "cards" ? renderCardsCenter(monthName) : renderDashboard(monthName)}</main></div><div id="modalRoot"></div>`;
+  ${state.view === "users" ? renderUsers() : state.view === "settings" ? renderSettings(monthName) : state.view === "planning" ? renderCashPlanning() : state.view === "calendar" ? renderCalendar(monthName) : state.view === "cards" ? renderCardsCenter(monthName) : state.view === "spaces" ? renderManagementCenter() : renderDashboard(monthName)}</main></div><div id="modalRoot"></div>`;
   bindShell();
 }
 
@@ -594,9 +594,33 @@ function viewTitle() {
     planning: "Planejamento de caixa",
     calendar: "Agenda financeira",
     cards: "Central de cartões",
+    spaces: "Gerenciamentos",
     settings: "Configurações",
     users: "Gestão de usuários",
   }[state.view];
+}
+const managementSymbols = { wallet: "Finanças pessoais", home: "Casa", users: "Família", "credit-card": "Cartões", chart: "Projetos", calendar: "Planejamento" };
+function managementAppearance(item) {
+  const color = item?.appearance?.color;
+  const symbol = item?.appearance?.symbol;
+  return { color: /^#[0-9a-f]{6}$/i.test(color || "") ? color : "#3157D5", symbol: Object.hasOwn(managementSymbols, symbol) ? symbol : "wallet" };
+}
+function availableCategories(type, previous = "") {
+  const result = [...(categories[type] || [])];
+  const custom = state.selected?.customCategories?.[type];
+  for (const name of [...(Array.isArray(custom) ? custom : []), previous]) {
+    if (typeof name === "string" && name.trim() && !result.some(value => normalizeSearch(value) === normalizeSearch(name))) result.push(name);
+  }
+  return result;
+}
+function renderManagementCenter() {
+  const create = state.profile.canCreateManagement || state.profile.role === "master";
+  return `<div class="content-head"><div><strong>Meus espaços financeiros</strong><span>Personalize e alterne entre seus gerenciamentos.</span></div>${create ? '<button type="button" class="btn btn-primary" id="newManagement">+ Novo gerenciamento</button>' : ""}</div><div class="finance-space-grid">${state.managements.map(item => {
+    const appearance = managementAppearance(item);
+    const role = item.memberRoles?.[state.user.uid];
+    const selected = item.id === state.selected?.id;
+    return `<article class="panel finance-space-card ${selected ? "is-selected" : ""}" style="--space-color:${appearance.color}"><div class="finance-space-heading"><span class="finance-space-symbol">${icon(appearance.symbol)}</span><div><h2>${esc(item.name)}</h2><small>${role === "owner" ? "Proprietário" : role === "editor" ? "Editor" : "Leitor"} · ${(item.memberIds || []).length} participante(s)</small></div></div><p>${esc(item.description || "Sem descrição")}</p><div class="finance-space-actions"><button type="button" class="btn ${selected ? "btn-soft" : "btn-primary"}" data-finance-select-space="${attr(item.id)}">${selected ? "Abrir visão geral" : "Acessar espaço"}</button>${role === "owner" || role === "editor" ? `<button type="button" class="btn btn-soft" data-finance-edit-space="${attr(item.id)}">Personalizar</button>` : ""}</div></article>`;
+  }).join("") || '<p>Nenhum gerenciamento disponível.</p>'}</div>${state.selected ? `<section class="panel finance-category-panel"><h2>Categorias de ${esc(state.selected.name)}</h2><p>As categorias padrão são preservadas. As personalizadas ficam disponíveis para todos os participantes deste espaço.</p><form id="financeCategoriesForm"><div class="finance-category-grid">${["expense","income"].map(type => `<div><h3>${type === "expense" ? "Despesas" : "Entradas"}</h3><div class="finance-category-tags">${categories[type].map(name=>`<span>${esc(name)}</span>`).join("")}</div><label>Categorias adicionais (uma por linha)<textarea name="${type}" rows="5" ${canEdit() ? "" : "disabled"}>${esc((state.selected.customCategories?.[type] || []).join("\\n").replaceAll("\\n","\n"))}</textarea></label></div>`).join("")}</div>${canEdit() ? '<button type="submit" class="btn btn-primary">Salvar categorias</button>' : '<p>Seu acesso permite apenas consultar as categorias.</p>'}</form></section>` : ""}`;
 }
 function managementSelect() {
   return `<select id="managementSelect"><option value="">${state.managements.length ? "Selecionar gerenciamento" : "Nenhum gerenciamento"}</option>${state.managements.map((item) => `<option value="${item.id}" ${state.selected?.id === item.id ? "selected" : ""}>${esc(item.name)}</option>`).join("")}</select>`;
@@ -1142,7 +1166,7 @@ function filteredCalendarTransactions() {
   });
 }
 function expenseFilterCategories() {
-  const known = categories.expense.slice();
+  const known = availableCategories("expense");
   calendarScopedTransactions()
     .filter((item) => item.type === "expense" && item.category)
     .forEach((item) => {
@@ -1396,7 +1420,7 @@ function renderFinanceShortcuts(list) {
     ["planning","Planejamento de caixa","Organize seus recursos","Simular pagamentos","planning","",""],
     ["expenses","Despesas por categoria","Entenda seus gastos",report.ranking.length + " categorias","dashboard","financeInsights",""],
     ["budget","Limite mensal","Acompanhe seu orçamento",expenseLimitForMonth() ? money.format(expenseLimitForMonth()) : "Não definido","settings","financeBudget",""],
-    ["spaces","Gerenciamentos","Seus espaços compartilhados",state.managements.length + " espaços","settings","financeSpaces",""]
+    ["spaces","Gerenciamentos","Seus espaços compartilhados",state.managements.length + " espaços","spaces","",""]
   ];
   return `<section class="finance-modules"><div class="finance-section-head"><div><h2>Meu espaço financeiro</h2><p>Atalhos para organizar seu dia a dia.</p></div></div><div class="finance-module-grid">${items.map(([kind,title,desc,badge,go,focus,layout])=>`<button type="button" class="finance-module finance-module-${kind}" data-go="${go}" ${focus ? 'data-focus="'+focus+'"' : ''} ${layout ? 'data-layout="'+layout+'"' : ''}><span class="finance-module-copy"><b>${title}</b><span>${desc}</span><small>${esc(badge)}</small></span>${financeArt(kind)}</button>`).join("")}</div></section>`;
 }
@@ -1407,7 +1431,7 @@ function renderFinanceUpcoming(list) {
   return `<article class="panel finance-upcoming"><div class="finance-side-title"><span>${icon("calendar")}</span><h2>Próximos vencimentos</h2></div>${overdue.length ? `<button type="button" class="finance-overdue" data-summary="pending">${overdue.length} em atraso · ${money.format(sum(overdue))}</button>` : ""}<div class="finance-upcoming-list">${pending.length ? pending.slice(0,4).map(item=>`<button type="button" class="finance-due-row" data-edit="${attr(item.id)}">${categoryIconBadge(item)}<span><b>${esc(item.description)}</b><small>${formatDate(item.dueDate)}</small></span><strong>${money.format(item.amount)}</strong></button>`).join("") : '<p class="finance-side-empty">Nenhum vencimento futuro pendente neste período.</p>'}</div><button type="button" class="finance-side-link" data-go="calendar" data-layout="agenda">Ver agenda completa <span aria-hidden="true">→</span></button></article>`;
 }
 function renderFinanceActions() {
-  return `<article class="panel finance-quick"><div class="finance-side-title"><span>${icon("plus")}</span><h2>Ações rápidas</h2></div><div class="finance-quick-grid"><button type="button" data-finance-new ${canEdit() ? "" : "disabled"}>${icon("plus")}<span>Novo lançamento</span></button><button type="button" data-go="planning">${icon("chart")}<span>Planejar caixa</span></button><button type="button" data-go="cards">${icon("credit-card")}<span>Meus cartões</span></button><button type="button" data-go="settings" data-focus="financeSpaces">${icon("wallet")}<span>Gerenciamentos</span></button></div></article>`;
+  return `<article class="panel finance-quick"><div class="finance-side-title"><span>${icon("plus")}</span><h2>Ações rápidas</h2></div><div class="finance-quick-grid"><button type="button" data-finance-new ${canEdit() ? "" : "disabled"}>${icon("plus")}<span>Novo lançamento</span></button><button type="button" data-go="planning">${icon("chart")}<span>Planejar caixa</span></button><button type="button" data-go="cards">${icon("credit-card")}<span>Meus cartões</span></button><button type="button" data-go="spaces">${icon("wallet")}<span>Gerenciamentos</span></button></div></article>`;
 }
 function renderDashboard(monthName) {
   if (!state.selected) return emptyManagement();
@@ -1770,6 +1794,40 @@ function empty(text) {
 }
 
 function bindShell() {
+  document.querySelectorAll("[data-finance-select-space]").forEach(button => {
+    button.onclick = () => {
+      const selected = state.managements.find(item => item.id === button.dataset.financeSelectSpace);
+      if (!selected) return;
+      if (selected.id !== state.selected?.id) {
+        state.selected = selected;
+        state.calendarFilters = defaultCalendarFilters();
+        observeSelectedManagement();
+      }
+      state.view = "dashboard";
+      renderApp();
+    };
+  });
+  document.querySelectorAll("[data-finance-edit-space]").forEach(button => {
+    button.onclick = () => {
+      const item = state.managements.find(item => item.id === button.dataset.financeEditSpace);
+      if (item && ["owner","editor"].includes(item.memberRoles?.[state.user.uid])) openManagementModal(item);
+    };
+  });
+  const categoryForm = document.querySelector("#financeCategoriesForm");
+  if (categoryForm && canEdit()) categoryForm.onsubmit = async event => {
+    event.preventDefault();
+    const button = categoryForm.querySelector("button[type=submit]");
+    const data = {};
+    for (const type of ["expense","income"]) {
+      data[type] = [...new Set(categoryForm.elements[type].value.split(/\r?\n/).map(name=>name.trim()).filter(Boolean))].filter(name=>!categories[type].some(base=>normalizeSearch(base)===normalizeSearch(name)));
+    }
+    busy(button,true);
+    try {
+      await ApiService.updateManagement(state.selected.id,{customCategories:data});
+      toast("Categorias atualizadas.");
+    } catch(error) { serviceError(error); }
+    finally { busy(button,false); }
+  };
   document.querySelectorAll("[data-finance-card-agenda]").forEach(button => {
     button.onclick = () => {
       state.calendarFilters = {...defaultCalendarFilters(), expenseCategory: "Cartão", cardId: button.dataset.financeCardAgenda};
@@ -2482,7 +2540,7 @@ function voiceRemoveTerms(command, terms = []) {
 
 function voiceCategory(command, type) {
   const normalized = normalizeVoiceText(command);
-  const categoryList = categories[type];
+  const categoryList = availableCategories(type);
   const direct = categoryList
     .slice()
     .sort((a, b) => b.length - a.length)
@@ -3487,7 +3545,7 @@ function summaryDetailRow(item) {
 function openManagementModal(item = null) {
   const editing = Boolean(item?.id);
   showModal(
-    `<form class="modal" id="managementForm"><button class="modal-close" type="button">×</button><span class="eyebrow">${editing ? "EDITAR" : "NOVO"} ESPAÇO</span><h2>${editing ? "Editar gerenciamento" : "Criar gerenciamento"}</h2><label>Nome<input name="name" placeholder="Ex.: Contas de casa" value="${attr(item?.name || "")}" required maxlength="80"></label><label>Descrição<textarea name="description" placeholder="Opcional" maxlength="240">${esc(item?.description || "")}</textarea></label><button class="btn btn-primary wide" type="submit">${editing ? "Salvar alterações" : "Criar gerenciamento"}</button></form>`,
+    `<form class="modal" id="managementForm"><button class="modal-close" type="button">×</button><span class="eyebrow">${editing ? "EDITAR" : "NOVO"} ESPAÇO</span><h2>${editing ? "Editar gerenciamento" : "Criar gerenciamento"}</h2><label>Nome<input name="name" placeholder="Ex.: Contas de casa" value="${attr(item?.name || "")}" required maxlength="80"></label><label>Descrição<textarea name="description" placeholder="Opcional" maxlength="240">${esc(item?.description || "")}</textarea></label><div class="finance-appearance-fields"><label>Cor do espaço<input type="color" name="color" value="${managementAppearance(item).color}"></label><label>Ícone<select name="symbol">${Object.entries(managementSymbols).map(([key,label])=>`<option value="${key}" ${managementAppearance(item).symbol===key ? "selected" : ""}>${label}</option>`).join("")}</select></label></div><button class="btn btn-primary wide" type="submit">${editing ? "Salvar alterações" : "Criar gerenciamento"}</button></form>`,
   );
   const form = document.querySelector("#managementForm");
   form.onsubmit = async (e) => {
@@ -3500,8 +3558,9 @@ function openManagementModal(item = null) {
         await ApiService.updateManagement(item.id, {
           name: data.name.trim(),
           description: data.description.trim(),
+          appearance: {color:data.color,symbol:data.symbol},
         });
-      else await ApiService.createManagement(data, state.user);
+      else await ApiService.createManagement({name:data.name,description:data.description,appearance:{color:data.color,symbol:data.symbol}}, state.user);
       closeModal();
       toast(editing ? "Gerenciamento atualizado." : "Gerenciamento criado.");
     } catch (err) {
@@ -3793,7 +3852,7 @@ function openRecordModal(item = {}) {
   };
   const fillCategories = () => {
     const current = category.value || item.category;
-    category.innerHTML = `<option value="">Selecione uma categoria</option>${categories[form.type.value]
+    category.innerHTML = `<option value="">Selecione uma categoria</option>${availableCategories(form.type.value, item.type === form.type.value ? item.category : "")
       .map((c) => `<option value="${attr(c)}" ${c === current ? "selected" : ""}>${esc(c === "Cartão" ? "Fatura de cartão" : c)}</option>`)
       .join("")}`;
     form.status.options[1].textContent =
