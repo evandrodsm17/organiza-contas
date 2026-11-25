@@ -200,3 +200,25 @@ html[data-theme="dark"] .finance-quick-grid button .ui-icon{color:#86b9ff}
 @media(max-width:340px){
   .finance-dashboard-main .finance-module-grid,.finance-dashboard-main .summary-grid{grid-template-columns:minmax(0,1fr)}
 }
+
+.admin-users-panel{padding:20px;min-width:0}
+.admin-users-panel>label{display:grid;gap:8px;max-width:480px;margin-bottom:18px}
+.admin-user-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px}
+.admin-user-card{display:flex;flex-direction:column;gap:12px;min-width:0;padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--surface-raised,var(--white))}
+.admin-user-card[hidden],#adminUserEmpty[hidden]{display:none}
+.admin-user-heading{display:flex;align-items:center;gap:10px;min-width:0}
+.admin-user-heading>div{flex:1;min-width:0}
+.admin-user-heading h2{font-size:16px;margin:0 0 4px;overflow-wrap:anywhere}
+.admin-user-heading small,.admin-user-card p{font-size:12px;color:var(--muted);overflow-wrap:anywhere;margin:0}
+.admin-user-card .admin-user-warning{color:#b66b17}
+html[data-theme="dark"] .admin-user-card .admin-user-warning{color:#ffb85e}
+.admin-user-card .switch{align-self:flex-start}
+.admin-user-card .finance-card-actions{margin-top:auto}
+.admin-user-card .finance-card-actions .btn{font-size:12px;white-space:normal}
+.password-change-screen{min-height:100vh;display:grid;place-items:center;padding:24px}
+.password-change-form{width:min(100%,440px);display:grid;gap:16px;padding:28px}
+.password-change-form h1{font-size:24px;margin:0}
+.password-change-form p{color:var(--muted);margin:0;font-size:14px}
+.password-change-form label{display:grid;gap:7px}
+.password-change-form input{width:100%;min-width:0}
+@media(max-width:600px){.admin-users-panel{padding:12px}.admin-user-card{padding:12px}.password-change-form{padding:18px}}
