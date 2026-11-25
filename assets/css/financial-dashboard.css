@@ -94,3 +94,23 @@ html[data-theme="dark"] .finance-quick-grid button .ui-icon{color:#86b9ff}
 .finance-unassigned{margin-top:20px;padding:16px}.finance-unassigned h2{font-size:18px}.finance-unassigned p{color:var(--muted);font-size:13px}
 /* Preserve existing mobile bottom navigation; cards remain accessible from dashboard. */
 @media(max-width:760px){.app-shell aside nav .finance-cards-nav{display:none}}
+
+.finance-space-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:16px;margin:18px 0}
+.finance-space-card{display:flex;flex-direction:column;gap:14px;padding:20px;border-top:4px solid var(--space-color);min-width:0}
+.finance-space-card.is-selected{outline:2px solid var(--space-color);outline-offset:-2px}
+.finance-space-heading{display:flex;align-items:center;gap:12px;min-width:0}
+.finance-space-symbol{display:grid;place-items:center;width:52px;height:52px;border-radius:14px;background:color-mix(in srgb,var(--space-color) 20%,var(--surface-raised,var(--white)));color:var(--ink);border:1px solid var(--space-color);flex:none}
+.finance-space-symbol .ui-icon{width:27px;height:27px}
+.finance-space-heading h2{font-size:18px;margin:0 0 4px;overflow-wrap:anywhere}
+.finance-space-heading small,.finance-space-card p,.finance-category-panel p{font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+.finance-space-card p{margin:0;flex:1}
+.finance-space-actions{display:flex;flex-wrap:wrap;gap:8px}
+.finance-category-panel{padding:20px;margin-top:24px}
+.finance-category-panel h2{font-size:20px;margin-bottom:8px}
+.finance-category-grid,.finance-appearance-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:16px 0}
+.finance-category-grid h3{font-size:16px;margin:0 0 12px}
+.finance-category-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.finance-category-tags span{border:1px solid var(--line);background:var(--surface-raised,var(--white));border-radius:99px;padding:5px 9px;font-size:12px}
+.finance-category-grid textarea{width:100%;resize:vertical}
+.finance-appearance-fields input[type="color"]{width:100%;min-height:42px;padding:5px}
+@media(max-width:600px){.finance-category-grid{grid-template-columns:1fr}.finance-space-card,.finance-category-panel{padding:15px}}
