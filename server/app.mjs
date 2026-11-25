@@ -12,7 +12,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const digest = value => createHash('sha256').update(value).digest('hex');
 const sessionAge = 7 * 24 * 3600;
 const cookieValue = (req, name) => (req.headers.cookie || '').split(';').map(x => x.trim()).find(x => x.startsWith(`${name}=`))?.slice(name.length + 1);
-const publicUser = user => ({ uid: user.id, email: user.email, displayName: user.name });
+const publicUser = user => ({ uid: user.id, email: user.email, displayName: user.name, mustChangePassword: user.mustChangePassword === true });
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json' };
 
 function managementAppearance(data) {
@@ -71,6 +71,9 @@ export async function createApp({ dataDir = process.env.DATA_DIR || './data', or
   const json = (res, data, status = 200) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(data)); };
   const cookie = (name, value, age) => `${name}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${age}${secure ? '; Secure' : ''}`;
   const session = (req, res, user) => {
+    const latest = store.user(user.id);
+    if (!latest?.active) fail(401, 'Acesso desativado.');
+    store.db.prepare('UPDATE users SET data=? WHERE id=?').run(JSON.stringify({ ...latest, lastLoginAt: new Date().toISOString() }), user.id);
     const old = cookieValue(req, cookieName);
     if (old) store.db.prepare('DELETE FROM sessions WHERE token=?').run(digest(old));
     store.db.prepare('DELETE FROM sessions WHERE expires<?').run(Date.now());
@@ -147,11 +150,12 @@ export async function createApp({ dataDir = process.env.DATA_DIR || './data', or
         const valid = await verifyPassword(data.password, entry?.password);
         const user = entry && store.user(entry.id);
         if (!valid || !entry?.password || !user?.active) fail(401, 'E-mail ou senha inválidos.');
+        if (store.db.prepare('SELECT password FROM users WHERE id=?').get(user.id)?.password !== entry.password) fail(401, 'E-mail ou senha inválidos.');
         if (entry.password.startsWith('firebase:') && data.password.length >= 8 && data.password.length <= 256) {
           const upgraded = await hashPassword(data.password);
           store.db.prepare('UPDATE users SET password=? WHERE id=? AND password=?').run(upgraded,user.id,entry.password);
         }
-        session(req, res, user); return json(res, publicUser(user));
+        session(req, res, user); return json(res, publicUser(store.user(user.id)));
       }
       if (path === '/api/auth/me' && method === 'GET') {
         try { return json(res, publicUser(authenticate(req))); }
@@ -199,6 +203,24 @@ export async function createApp({ dataDir = process.env.DATA_DIR || './data', or
       }
       if (path.startsWith('/api/')) {
         const user = authenticate(req);
+        if (path === '/api/auth/change-password' && method === 'POST') {
+          rateLimit(req);
+          const data = await body(req);
+          if (typeof data.password !== 'string' || data.password.length < 8 || data.password.length > 256) fail(400, 'A nova senha deve ter entre 8 e 256 caracteres.');
+          const entry = store.db.prepare('SELECT password FROM users WHERE id=?').get(user.id);
+          if (!entry?.password || !await verifyPassword(data.currentPassword, entry.password)) fail(400, 'Senha atual incorreta.');
+          if (data.password === data.currentPassword) fail(400, 'Escolha uma senha diferente da atual.');
+          const password = await hashPassword(data.password);
+          const latest = authenticate(req);
+          if (store.db.prepare('SELECT password FROM users WHERE id=?').get(user.id)?.password !== entry.password) fail(409, 'A senha foi alterada. Entre novamente.');
+          store.atomic(() => {
+            store.db.prepare('UPDATE users SET password=?, data=? WHERE id=?').run(password, JSON.stringify({ ...latest, mustChangePassword:false, passwordChangedAt:new Date().toISOString() }), user.id);
+            store.db.prepare('DELETE FROM sessions WHERE user_id=?').run(user.id);
+            session(req,res,latest);
+          });
+          return json(res, publicUser(store.user(user.id)));
+        }
+        if (user.mustChangePassword && path !== '/api/profile') fail(403, 'Altere sua senha temporária antes de continuar.');
         if (path === '/api/profile' && method === 'GET') return json(res, user);
         if (path === '/api/push/config' && method === 'GET') return json(res, { enabled: pushReady, publicKey: pushReady ? vapidPublicKey : '' });
         if (path === '/api/users') {
@@ -208,22 +230,54 @@ export async function createApp({ dataDir = process.env.DATA_DIR || './data', or
             const data = await body(req);
             const id = randomUUID(); const address = email(data.email);
             const name = text(data.name, 100);
+            if (typeof data.password !== 'string' || data.password.length < 8 || data.password.length > 256) fail(400, 'A senha deve ter entre 8 e 256 caracteres.');
             const password = await hashPassword(data.password);
             if (store.db.prepare('SELECT id FROM users WHERE email=?').get(address)) fail(409, 'E-mail já cadastrado.');
-            const profile = { name, email: address, role: 'user', active: true, canCreateManagement: data.canCreateManagement === true, createdAt: new Date().toISOString(), createdBy: user.id };
+            const profile = { name, email: address, role: 'user', active: true, mustChangePassword: true, canCreateManagement: data.canCreateManagement === true, createdAt: new Date().toISOString(), createdBy: user.id };
             store.db.prepare('INSERT INTO users(id,email,password,data) VALUES (?,?,?,?)').run(id, address, password, JSON.stringify(profile));
             return json(res, { uid: id }, 201);
           }
         }
         if (parts[1] === 'users' && parts.length === 3 && method === 'PATCH') {
           master(user);
-          const target = store.user(parts[2]); if (!target) fail(404, 'Usuário não encontrado.');
           const data = await body(req);
-          if (target.role === 'master' && data.active === false) fail(400, 'Não é permitido desativar o master.');
-          for (const key of Object.keys(data)) if (!['active','canCreateManagement'].includes(key) || typeof data[key] !== 'boolean') fail(400, 'Permissão inválida.');
-          store.db.prepare('UPDATE users SET data=? WHERE id=?').run(JSON.stringify({ ...target, ...data }), target.id);
-          if (data.active === false) store.db.prepare('DELETE FROM sessions WHERE user_id=?').run(target.id);
-          return json(res, { ok: true });
+          const target = store.user(parts[2]); if (!target) fail(404, 'Usuário não encontrado.');
+          if (target.role === 'master' && ('active' in data || 'canCreateManagement' in data)) fail(400, 'Não é permitido alterar permissões do master.');
+          const next = { ...target };
+          for (const key of Object.keys(data)) {
+            if (['active','canCreateManagement'].includes(key) && typeof data[key] === 'boolean') next[key] = data[key];
+            else if (key === 'name') next.name = text(data.name,100);
+            else if (key === 'email') next.email = email(data.email);
+            else fail(400, 'Campo inválido.');
+          }
+          const changedEmail = next.email !== target.email;
+          if (changedEmail && target.role === 'master') fail(400, 'O e-mail do master deve ser alterado por procedimento administrativo local.');
+          if (changedEmail && store.db.prepare('SELECT id FROM users WHERE email=? AND id<>?').get(next.email,target.id)) fail(409, 'E-mail já cadastrado.');
+          store.atomic(() => {
+            if (changedEmail) store.db.prepare('UPDATE users SET email=?, google_id=NULL, data=? WHERE id=?').run(next.email,JSON.stringify(next),target.id);
+            else store.db.prepare('UPDATE users SET data=? WHERE id=?').run(JSON.stringify(next),target.id);
+            if (changedEmail || data.active === false) store.db.prepare('DELETE FROM sessions WHERE user_id=?').run(target.id);
+          });
+          return json(res,{ok:true});
+        }
+        if (parts[1] === 'users' && parts.length === 4 && method === 'POST' && ['reset-password','revoke-sessions'].includes(parts[3])) {
+          master(user);
+          const target = store.user(parts[2]); if (!target) fail(404,'Usuário não encontrado.');
+          if (target.role === 'master') fail(400,'Use o procedimento local para o master.');
+          if (parts[3] === 'revoke-sessions') {
+            store.db.prepare('DELETE FROM sessions WHERE user_id=?').run(target.id);
+            return json(res,{ok:true});
+          }
+          const temporaryPassword = randomBytes(18).toString('base64url');
+          const password = await hashPassword(temporaryPassword);
+          master(authenticate(req));
+          const latest = store.user(target.id);
+          if (!latest || latest.role === 'master') fail(400,'Usuário indisponível.');
+          store.atomic(() => {
+            store.db.prepare('UPDATE users SET password=?, data=? WHERE id=?').run(password,JSON.stringify({...latest,mustChangePassword:true,passwordResetAt:new Date().toISOString()}),target.id);
+            store.db.prepare('DELETE FROM sessions WHERE user_id=?').run(target.id);
+          });
+          return json(res,{temporaryPassword});
         }
         if (path === '/api/managements') {
           if (method === 'GET') return json(res, store.managements().filter(m => m.memberIds.includes(user.id)).sort((a,b) => a.name.localeCompare(b.name, 'pt-BR')));
