@@ -438,6 +438,9 @@ ApiService.observeAuth(async (user) => {
     state.selected = null;
     state.transactions = [];
     state.cards = [];
+    state.users = [];
+    state.adminUserQuery = "";
+    state.view = "dashboard";
     renderPublic();
     return;
   }
@@ -447,6 +450,7 @@ ApiService.observeAuth(async (user) => {
       throw new Error(
         "Seu acesso está inativo ou ainda não foi autorizado pelo master.",
       );
+    if (state.profile.mustChangePassword) { renderForcedPasswordChange(); return; }
     observeManagements();
   } catch (error) {
     toast(error.message, "danger");
@@ -569,6 +573,7 @@ function observeSelectedManagement() {
 }
 
 function renderApp() {
+  if (state.profile?.mustChangePassword) { renderForcedPasswordChange(); return; }
   const monthName = new Intl.DateTimeFormat("pt-BR", {
     month: "long",
     year: "numeric",
@@ -1716,7 +1721,51 @@ function quickPayButton(item) {
 
 function renderUsers() {
   if (state.profile.role !== "master") return "";
-  return `<div class="content-head"><div><strong>Usuários autorizados</strong><span>Somente o master pode criar e alterar acessos.</span></div><button class="btn btn-primary" id="createUser">+ Criar usuário</button></div><article class="panel"><div class="user-list">${state.users.map((u) => `<div class="user-row"><span>${initials(u.name)}</span><div><b>${esc(u.name)}</b><small>${esc(u.email)}</small></div><label class="switch"><input type="checkbox" data-access="${u.id}" data-field="canCreateManagement" ${u.canCreateManagement ? "checked" : ""} ${u.role === "master" ? "disabled" : ""}><i></i> Pode criar gerenciamentos</label><label class="switch"><input type="checkbox" data-access="${u.id}" data-field="active" ${u.active ? "checked" : ""} ${u.role === "master" ? "disabled" : ""}><i></i> Ativo</label><span class="role">${u.role}</span></div>`).join("")}</div></article>`;
+  return `<div class="content-head"><div><strong>Usuários autorizados</strong><span>Gerencie identidades, permissões e sessões.</span></div><button class="btn btn-primary" id="createUser">+ Criar usuário</button></div><section class="summary-grid">${summary("Usuários",state.users.length,"info","", "") .replace(money.format(state.users.length),String(state.users.length))}${summary("Ativos",state.users.filter(u=>u.active).length,"success","✓").replace(money.format(state.users.filter(u=>u.active).length),String(state.users.filter(u=>u.active).length))}${summary("Troca de senha pendente",state.users.filter(u=>u.mustChangePassword).length,"danger","!").replace(money.format(state.users.filter(u=>u.mustChangePassword).length),String(state.users.filter(u=>u.mustChangePassword).length))}</section><article class="panel admin-users-panel"><label>Buscar usuário<input id="adminUserSearch" type="search" placeholder="Nome ou e-mail" autocomplete="off" value="${attr(state.adminUserQuery || "")}"></label><div class="admin-user-grid">${state.users.map(u=>`<article class="admin-user-card" data-admin-user-row data-search="${attr(normalizeSearch(u.name+" "+u.email))}"><div class="admin-user-heading"><span class="finance-space-symbol">${esc(initials(u.name))}</span><div><h2>${esc(u.name)}</h2><small>${esc(u.email)}</small></div><span class="role">${u.role==="master"?"Master":u.active?"Ativo":"Inativo"}</span></div><p>Último acesso: ${u.lastLoginAt ? esc(new Date(u.lastLoginAt).toLocaleString("pt-BR")) : "Não registrado"}</p>${u.mustChangePassword ? '<p class="admin-user-warning">Troca de senha pendente</p>' : ""}<label class="switch"><input type="checkbox" data-access="${attr(u.id)}" data-field="canCreateManagement" ${u.canCreateManagement?"checked":""} ${u.role==="master"?"disabled":""}><i></i> Pode criar gerenciamentos</label><label class="switch"><input type="checkbox" data-access="${attr(u.id)}" data-field="active" ${u.active?"checked":""} ${u.role==="master"?"disabled":""}><i></i> Ativo</label><div class="finance-card-actions"><button class="btn btn-soft" data-admin-edit="${attr(u.id)}" type="button">Editar</button>${u.role!=="master"?`<button class="btn btn-soft" data-admin-reset="${attr(u.id)}" type="button">Redefinir senha</button><button class="btn btn-soft" data-admin-revoke="${attr(u.id)}" type="button">Encerrar sessões</button>`:""}</div></article>`).join("")}</div><p id="adminUserEmpty" hidden>Nenhum usuário encontrado.</p></article>`;
+}
+function filterAdminUsers() {
+  const query=normalizeSearch(state.adminUserQuery || "");
+  let count=0;
+  document.querySelectorAll("[data-admin-user-row]").forEach(row=>{
+    row.hidden=!row.dataset.search.includes(query);
+    if(!row.hidden) count++;
+  });
+  const empty=document.querySelector("#adminUserEmpty");
+  if(empty) empty.hidden=count!==0;
+}
+function openAdminEdit(user) {
+  if(state.profile.role!=="master") return;
+  showModal(`<form class="modal" id="adminEditForm"><button class="modal-close" type="button">×</button><h2>Editar usuário</h2><label>Nome<input name="name" maxlength="100" required value="${attr(user.name)}"></label><label>E-mail<input name="email" type="email" required maxlength="254" value="${attr(user.email)}" ${user.role==="master"?"disabled":""}></label><p>Alterar o e-mail de um usuário encerra suas sessões e desvincula a conta Google anterior.</p><button class="btn btn-primary" type="submit">Salvar alterações</button></form>`);
+  document.querySelector("#adminEditForm").onsubmit=async event=>{
+    event.preventDefault();
+    const form=event.currentTarget, button=form.querySelector("button[type=submit]");
+    const data={name:form.elements.name.value.trim()};
+    if(user.role!=="master") data.email=form.elements.email.value.trim();
+    busy(button,true);
+    try{await ApiService.setUserAccess(user.id,data);closeModal();toast("Usuário atualizado.");}
+    catch(error){serviceError(error);busy(button,false);}
+  };
+}
+async function resetAdminPassword(user,button) {
+  if(!confirm("Redefinir a senha de "+user.name+"? As sessões atuais serão encerradas.")) return;
+  busy(button,true);
+  try {
+    const result=await ApiService.resetUserPassword(user.id);
+    showModal(`<article class="modal"><button class="modal-close" type="button">×</button><h2>Senha temporária gerada</h2><p>Entregue a senha por um canal seguro. O usuário deverá alterá-la antes de acessar os dados. Ela não será exibida novamente pelo servidor.</p><label>Senha temporária<input id="adminTemporaryPassword" readonly autocomplete="off" value="${attr(result.temporaryPassword)}"></label><button class="btn btn-primary" type="button" id="copyAdminPassword">Copiar senha</button></article>`);
+    document.querySelector("#copyAdminPassword").onclick=async()=>{try{await navigator.clipboard.writeText(result.temporaryPassword);toast("Senha copiada.");}catch{document.querySelector("#adminTemporaryPassword")?.select();}};
+  }catch(error){serviceError(error);}finally{busy(button,false);}
+}
+function renderForcedPasswordChange() {
+  app.innerHTML=`<main class="password-change-screen"><form class="panel password-change-form" id="forcedPasswordForm"><h1>Alterar senha temporária</h1><p>Antes de continuar, escolha uma senha pessoal de pelo menos 8 caracteres.</p><label>Senha temporária<input name="currentPassword" type="password" autocomplete="current-password" required></label><label>Nova senha<input name="password" type="password" autocomplete="new-password" minlength="8" maxlength="256" required></label><label>Confirme a nova senha<input name="confirmation" type="password" autocomplete="new-password" required></label><button class="btn btn-primary" type="submit">Alterar senha</button><button class="btn btn-soft" type="button" id="forcedLogout">Sair</button></form></main>`;
+  document.querySelector("#forcedLogout").onclick=()=>ApiService.logout().catch(serviceError);
+  document.querySelector("#forcedPasswordForm").onsubmit=async event=>{
+    event.preventDefault();
+    const form=event.currentTarget,button=form.querySelector("button[type=submit]");
+    if(form.elements.password.value!==form.elements.confirmation.value){toast("As senhas não coincidem.","danger");return;}
+    busy(button,true);
+    try{await ApiService.changePassword(form.elements.currentPassword.value,form.elements.password.value);toast("Senha alterada.");}
+    catch(error){serviceError(error);busy(button,false);}
+  };
 }
 function renderCardVisual(card, preview = false) {
   const background = validCardColor(card.backgroundColor);
@@ -1863,6 +1912,11 @@ function empty(text) {
 }
 
 function bindShell() {
+  const adminSearch=document.querySelector("#adminUserSearch");
+  if(adminSearch){filterAdminUsers();adminSearch.oninput=()=>{state.adminUserQuery=adminSearch.value;filterAdminUsers();};}
+  document.querySelectorAll("[data-admin-edit]").forEach(button=>button.onclick=()=>{const user=state.users.find(u=>u.id===button.dataset.adminEdit);if(user)openAdminEdit(user);});
+  document.querySelectorAll("[data-admin-reset]").forEach(button=>button.onclick=()=>{const user=state.users.find(u=>u.id===button.dataset.adminReset);if(user)resetAdminPassword(user,button);});
+  document.querySelectorAll("[data-admin-revoke]").forEach(button=>button.onclick=async()=>{if(!confirm("Encerrar todas as sessões deste usuário?"))return;busy(button,true);try{await ApiService.revokeUserSessions(button.dataset.adminRevoke);toast("Sessões encerradas.");}catch(error){serviceError(error);}finally{busy(button,false);}});
   document.querySelector("[data-goal-new]")?.addEventListener("click",()=>openGoalModal());
   document.querySelectorAll("[data-goal-edit]").forEach(button=>button.onclick=()=>{
     const goal=state.selected?.goals?.find(g=>g.id===button.dataset.goalEdit);
@@ -3535,7 +3589,7 @@ function observeUsers() {
   stopUsers();
   stopUsers = ApiService.observeUsers((users) => {
     state.users = users;
-    if (state.view === "users") renderApp();
+    if (state.view === "users" && !document.querySelector("#modalRoot .modal")) renderApp();
   }, serviceError);
 }
 function currentRole() {
