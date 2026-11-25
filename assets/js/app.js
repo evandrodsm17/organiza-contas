@@ -2,10 +2,11 @@ import { ApiService } from "./api-service.js";
 
 const app = document.querySelector("#app");
 const toastArea = document.querySelector("#toastArea");
-const money = new Intl.NumberFormat("pt-BR", {
+const currencyFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
 });
+const money = { format(value) { return state.user && state.hideAmounts ? "R$ ••••" : currencyFormatter.format(value); } };
 const dateLabel = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
   month: "short",
@@ -30,6 +31,7 @@ const state = {
   cards: [],
   month: new Date().toISOString().slice(0, 7),
   view: "dashboard",
+  hideAmounts: localStorage.getItem("organiza-hide-amounts") === "true",
   calendarLayout:
     localStorage.getItem("organiza-calendar-layout") ||
     (matchMedia("(max-width: 760px)").matches ? "agenda" : "grid"),
@@ -572,9 +574,9 @@ function renderApp() {
     year: "numeric",
     timeZone: "UTC",
   }).format(new Date(`${state.month}-01T12:00:00Z`));
-  app.innerHTML = `<div class="app-shell"><aside><a class="brand brand-light" href="#"><img class="brand-logo" src="assets/logo.png" alt=""><span>OrganizaContas</span></a><div class="profile"><span>${initials(state.profile.name)}</span><div><b>${esc(state.profile.name)}</b><small>${state.profile.role === "master" ? "Administrador master" : "Usuário"}</small></div></div><nav>${nav("dashboard", "home", "Visão geral")}${nav("planning", "chart", "Planejamento", "planning-nav-item")}${nav("calendar", "calendar", "Agenda")}${nav("cards", "credit-card", "Cartões", "finance-cards-nav")}<button class="mobile-new-record" id="mobileNewRecord" aria-label="Criar novo lançamento" title="Novo lançamento" ${!canEdit() ? "disabled" : ""}>${icon("plus")}</button>${nav("settings", "settings", "Configurações")}<button class="nav-item mobile-nav-logout mobile-nav-voice" id="mobileNavVoice" type="button" aria-label="Executar comando de voz" title="Comando de voz">${icon("mic")}<small>Voz</small></button></nav><button class="logout voice-sidebar-command" id="desktopVoiceCommand" type="button">${icon("mic")} Comando de voz</button></aside>
-  <main class="workspace"><header class="workspace-head"><div class="workspace-title"><span class="mobile-brand">OrganizaContas</span><h1>${viewTitle()}</h1><p>${state.selected ? esc(state.selected.name) : "Crie seu primeiro gerenciamento"}</p></div><div class="head-actions">${managementSelect()}<button class="btn btn-primary" id="newRecord" ${!canEdit() ? "disabled" : ""}>${icon("plus")}<span>Novo lançamento</span></button></div></header>
-  ${state.view === "users" ? renderUsers() : state.view === "settings" ? renderSettings(monthName) : state.view === "planning" ? renderCashPlanning() : state.view === "calendar" ? renderCalendar(monthName) : state.view === "cards" ? renderCardsCenter(monthName) : renderDashboard(monthName)}</main></div><div id="modalRoot"></div>`;
+  app.innerHTML = `<div class="app-shell"><aside><a class="brand brand-light" href="#"><img class="brand-logo" src="assets/logo.png" alt=""><span>OrganizaContas</span></a><div class="profile"><span>${initials(state.profile.name)}</span><div><b>${esc(state.profile.name)}</b><small>${state.profile.role === "master" ? "Administrador master" : "Usuário"}</small></div></div><nav>${nav("dashboard", "home", "Visão geral")}${nav("planning", "chart", "Planejamento", "planning-nav-item")}${nav("calendar", "calendar", "Agenda")}${nav("cards", "credit-card", "Cartões", "finance-cards-nav")}${nav("recurrences", "rotate-ccw", "Recorrências", "finance-cards-nav")}<button class="mobile-new-record" id="mobileNewRecord" aria-label="Criar novo lançamento" title="Novo lançamento" ${!canEdit() ? "disabled" : ""}>${icon("plus")}</button>${nav("settings", "settings", "Configurações")}<button class="nav-item mobile-nav-logout mobile-nav-voice" id="mobileNavVoice" type="button" aria-label="Executar comando de voz" title="Comando de voz">${icon("mic")}<small>Voz</small></button></nav><button class="logout voice-sidebar-command" id="desktopVoiceCommand" type="button">${icon("mic")} Comando de voz</button></aside>
+  <main class="workspace"><header class="workspace-head"><div class="workspace-title"><span class="mobile-brand">OrganizaContas</span><h1>${viewTitle()}</h1><p>${state.selected ? esc(state.selected.name) : "Crie seu primeiro gerenciamento"}</p></div><div class="head-actions"><button type="button" class="finance-privacy-btn" id="financePrivacy" aria-pressed="${state.hideAmounts}" aria-label="${state.hideAmounts ? "Mostrar valores" : "Ocultar valores"}" title="${state.hideAmounts ? "Mostrar valores" : "Ocultar valores"}">${icon(state.hideAmounts ? "eye-off" : "eye")}<span>${state.hideAmounts ? "Mostrar" : "Ocultar"}</span></button>${managementSelect()}<button class="btn btn-primary" id="newRecord" ${!canEdit() ? "disabled" : ""}>${icon("plus")}<span>Novo lançamento</span></button></div></header>
+  ${state.view === "users" ? renderUsers() : state.view === "settings" ? renderSettings(monthName) : state.view === "planning" ? renderCashPlanning() : state.view === "calendar" ? renderCalendar(monthName) : state.view === "cards" ? renderCardsCenter(monthName) : state.view === "spaces" ? renderManagementCenter() : state.view === "recurrences" ? renderRecurrenceCenter() : state.view === "goals" ? renderGoalsCenter() : state.view === "comparison" ? renderMonthlyComparison() : renderDashboard(monthName)}</main></div><div id="modalRoot"></div>`;
   bindShell();
 }
 
@@ -594,9 +596,36 @@ function viewTitle() {
     planning: "Planejamento de caixa",
     calendar: "Agenda financeira",
     cards: "Central de cartões",
+    spaces: "Gerenciamentos",
+    recurrences: "Recorrências e parcelamentos",
+    goals: "Metas financeiras",
+    comparison: "Comparativos mensais",
     settings: "Configurações",
     users: "Gestão de usuários",
   }[state.view];
+}
+const managementSymbols = { wallet: "Finanças pessoais", home: "Casa", users: "Família", "credit-card": "Cartões", chart: "Projetos", calendar: "Planejamento" };
+function managementAppearance(item) {
+  const color = item?.appearance?.color;
+  const symbol = item?.appearance?.symbol;
+  return { color: /^#[0-9a-f]{6}$/i.test(color || "") ? color : "#3157D5", symbol: Object.hasOwn(managementSymbols, symbol) ? symbol : "wallet" };
+}
+function availableCategories(type, previous = "") {
+  const result = [...(categories[type] || [])];
+  const custom = state.selected?.customCategories?.[type];
+  for (const name of [...(Array.isArray(custom) ? custom : []), previous]) {
+    if (typeof name === "string" && name.trim() && !result.some(value => normalizeSearch(value) === normalizeSearch(name))) result.push(name);
+  }
+  return result;
+}
+function renderManagementCenter() {
+  const create = state.profile.canCreateManagement || state.profile.role === "master";
+  return `<div class="content-head"><div><strong>Meus espaços financeiros</strong><span>Personalize e alterne entre seus gerenciamentos.</span></div>${create ? '<button type="button" class="btn btn-primary" id="newManagement">+ Novo gerenciamento</button>' : ""}</div><div class="finance-space-grid">${state.managements.map(item => {
+    const appearance = managementAppearance(item);
+    const role = item.memberRoles?.[state.user.uid];
+    const selected = item.id === state.selected?.id;
+    return `<article class="panel finance-space-card ${selected ? "is-selected" : ""}" style="--space-color:${appearance.color}"><div class="finance-space-heading"><span class="finance-space-symbol">${icon(appearance.symbol)}</span><div><h2>${esc(item.name)}</h2><small>${role === "owner" ? "Proprietário" : role === "editor" ? "Editor" : "Leitor"} · ${(item.memberIds || []).length} participante(s)</small></div></div><p>${esc(item.description || "Sem descrição")}</p><div class="finance-space-actions"><button type="button" class="btn ${selected ? "btn-soft" : "btn-primary"}" data-finance-select-space="${attr(item.id)}">${selected ? "Abrir visão geral" : "Acessar espaço"}</button>${role === "owner" || role === "editor" ? `<button type="button" class="btn btn-soft" data-finance-edit-space="${attr(item.id)}">Personalizar</button>` : ""}</div></article>`;
+  }).join("") || '<p>Nenhum gerenciamento disponível.</p>'}</div>${state.selected ? `<section class="panel finance-category-panel"><h2>Categorias de ${esc(state.selected.name)}</h2><p>As categorias padrão são preservadas. As personalizadas ficam disponíveis para todos os participantes deste espaço.</p><form id="financeCategoriesForm"><div class="finance-category-grid">${["expense","income"].map(type => `<div><h3>${type === "expense" ? "Despesas" : "Entradas"}</h3><div class="finance-category-tags">${categories[type].map(name=>`<span>${esc(name)}</span>`).join("")}</div><label>Categorias adicionais (uma por linha)<textarea name="${type}" rows="5" ${canEdit() ? "" : "disabled"}>${esc((state.selected.customCategories?.[type] || []).join("\\n").replaceAll("\\n","\n"))}</textarea></label></div>`).join("")}</div>${canEdit() ? '<button type="submit" class="btn btn-primary">Salvar categorias</button>' : '<p>Seu acesso permite apenas consultar as categorias.</p>'}</form></section>` : ""}`;
 }
 function managementSelect() {
   return `<select id="managementSelect"><option value="">${state.managements.length ? "Selecionar gerenciamento" : "Nenhum gerenciamento"}</option>${state.managements.map((item) => `<option value="${item.id}" ${state.selected?.id === item.id ? "selected" : ""}>${esc(item.name)}</option>`).join("")}</select>`;
@@ -1142,7 +1171,7 @@ function filteredCalendarTransactions() {
   });
 }
 function expenseFilterCategories() {
-  const known = categories.expense.slice();
+  const known = availableCategories("expense");
   calendarScopedTransactions()
     .filter((item) => item.type === "expense" && item.category)
     .forEach((item) => {
@@ -1368,7 +1397,7 @@ function renderCashPlanning() {
   return `<div class="cash-planning-page"><div class="cash-planning-page-head"><div><span class="eyebrow">PRÓXIMOS ${analysis.config.horizonDays} DIAS</span><h2>Seu dinheiro no tempo</h2><p>Projeção de ${formatFullDate(analysis.startDate)} a ${formatFullDate(analysis.endDate)}</p></div><button class="btn btn-soft" type="button" data-go="settings" data-focus="cashPlanningSettings">${icon("settings")} Ajustar planejamento</button></div>${lateIncomeAlert}<section class="cash-health-card is-${analysis.health}"><div class="cash-health-status"><span>${meta.icon}</span><div><small>${meta.label}</small><h2>${meta.title}</h2><p>${cashPlanningPrimaryText(analysis)}</p></div></div><div class="cash-health-minimum"><small>Menor saldo projetado</small><b>${money.format(analysis.minimumBalance)}</b><span>em ${formatFullDate(analysis.minimumBalanceDate)}</span></div></section><section class="cash-kpis"><article><span>${icon("wallet")}</span><div><small>Disponível hoje</small><b>${money.format(analysis.openingBalance)}</b><em>${openingCaption}</em></div></article><article><span>${icon("receipt")}</span><div><small>Até a próxima entrada</small><b>${money.format(analysis.requiredBeforeNextIncome)}</b><em>${analysis.expensesBeforeNextIncome.length} ${analysis.expensesBeforeNextIncome.length === 1 ? "conta" : "contas"}</em></div></article><article><span>${icon("trending-up")}</span><div><small>Próxima entrada</small>${nextIncomeCopy}</div></article><article><span>${icon("chart")}</span><div><small>Saldo ao fim da análise</small><b class="${analysis.projectedBalance < 0 ? "negative" : ""}">${money.format(analysis.projectedBalance)}</b><em>Reserva: ${money.format(analysis.config.minimumReserve)}</em></div></article></section>${renderAdaptivePaymentStrategy(analysis)}<section class="cash-planning-grid"><article class="panel cash-strategy-panel"><div class="panel-head"><div><h2>Como separar cada recebimento</h2><p>Obrigações agrupadas até a entrada seguinte</p></div></div><div class="cash-cycle-list">${cycles}</div></article>${attention}</section><article class="panel cash-timeline-panel"><div class="panel-head"><div><h2>Linha do tempo do caixa</h2><p>Entradas entram primeiro; depois, as contas do mesmo dia são priorizadas.</p></div><span>${analysis.processedEvents.length} movimentos</span></div><div class="cash-timeline-start"><span>Hoje</span><b>${money.format(analysis.openingBalance)}</b></div><div class="cash-timeline">${timeline}</div></article><p class="cash-planning-note">${icon("shield")} Esta é uma projeção baseada nos lançamentos cadastrados. Reserve o dinheiro quando recebê-lo e, sem desconto, prefira agendar o pagamento para o vencimento.</p></div>`;
 }
 
-function financeArt(kind) {
+function financeArt(kind, instance = kind) {
   const shapes = {
     wallet: '<rect x="20" y="39" width="102" height="66" rx="15" fill="url(#BLUE)" stroke="#8bc5ff" stroke-width="2"/><path d="M25 45L100 26Q110 24 114 39" fill="#234ca0" stroke="#7bbaff" stroke-width="2"/><rect x="88" y="61" width="43" height="25" rx="8" fill="#142e64" stroke="#7eb5ff"/><circle cx="99" cy="73" r="4" fill="#ffbb51"/><circle cx="112" cy="24" r="17" fill="url(#GOLD)" stroke="#fff0b1" stroke-width="2"/>',
     calendar: '<rect x="29" y="25" width="88" height="84" rx="13" fill="url(#BLUE)" stroke="#a8d3ff" stroke-width="2"/><path d="M30 47h86" stroke="#153776" stroke-width="14"/><path d="M49 17v19m47-19v19" stroke="#d5e8ff" stroke-width="7" stroke-linecap="round"/><g fill="#b6d3ff"><rect x="42" y="60" width="16" height="12" rx="3"/><rect x="65" y="60" width="16" height="12" rx="3"/><rect x="88" y="60" width="16" height="12" rx="3"/><rect x="42" y="79" width="16" height="12" rx="3"/></g><circle cx="104" cy="94" r="20" fill="url(#GOLD)"/><path d="m95 94 6 6 12-13" fill="none" stroke="#fff5d4" stroke-width="4"/>',
@@ -1378,7 +1407,7 @@ function financeArt(kind) {
     budget: '<circle cx="74" cy="66" r="43" fill="#183b66" stroke="#8cc6ff" stroke-width="2"/><path d="M40 78a36 36 0 0 1 68 0" fill="none" stroke="#5298e8" stroke-width="10" stroke-linecap="round"/><path d="M92 42a36 36 0 0 1 16 36" fill="none" stroke="#ffb64c" stroke-width="10" stroke-linecap="round"/><path d="m74 69 23-23" stroke="#ffe1a1" stroke-width="5" stroke-linecap="round"/><circle cx="74" cy="69" r="7" fill="url(#GOLD)"/>',
     spaces: '<path d="M19 58 72 20l53 38v48H19Z" fill="url(#BLUE)" stroke="#93c6ff" stroke-width="2"/><path d="m13 60 59-43 59 43" stroke="#ffba53" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><rect x="61" y="73" width="25" height="33" rx="4" fill="#17366d"/><rect x="30" y="69" width="21" height="19" rx="3" fill="#c2e3ff"/><rect x="97" y="69" width="19" height="19" rx="3" fill="#c2e3ff"/>'
   };
-  const id = 'oc-' + kind;
+  const id = 'oc-' + instance;
   return '<svg class="finance-art" viewBox="0 0 150 125" aria-hidden="true" focusable="false"><defs><linearGradient id="'+id+'-blue" x2="0.8" y2="1"><stop stop-color="#65b6ff"/><stop offset=".45" stop-color="#286ee1"/><stop offset="1" stop-color="#153477"/></linearGradient><linearGradient id="'+id+'-gold" x2="0.8" y2="1"><stop stop-color="#fff0a5"/><stop offset=".5" stop-color="#ffb63e"/><stop offset="1" stop-color="#d87915"/></linearGradient></defs><ellipse cx="75" cy="113" rx="52" ry="7" fill="#000" opacity=".2"/>'+shapes[kind].replaceAll('BLUE',id+'-blue').replaceAll('GOLD',id+'-gold')+'</svg>';
 }
 function renderFinanceHome(total) {
@@ -1396,9 +1425,12 @@ function renderFinanceShortcuts(list) {
     ["planning","Planejamento de caixa","Organize seus recursos","Simular pagamentos","planning","",""],
     ["expenses","Despesas por categoria","Entenda seus gastos",report.ranking.length + " categorias","dashboard","financeInsights",""],
     ["budget","Limite mensal","Acompanhe seu orçamento",expenseLimitForMonth() ? money.format(expenseLimitForMonth()) : "Não definido","settings","financeBudget",""],
-    ["spaces","Gerenciamentos","Seus espaços compartilhados",state.managements.length + " espaços","settings","financeSpaces",""]
+    ["spaces","Gerenciamentos","Seus espaços compartilhados",state.managements.length + " espaços","spaces","",""],
+    ["calendar","Recorrências e parcelas","Compromissos recorrentes",new Set(state.transactions.filter(item=>item.recurrenceGroupId && item.type==="expense").map(item=>item.recurrenceGroupId)).size + " séries","recurrences","",""],
+    ["budget","Metas financeiras","Acompanhe seus objetivos",(state.selected.goals || []).length + " metas","goals","",""],
+    ["planning","Comparativos mensais","Veja sua evolução","Últimos seis meses","comparison","",""]
   ];
-  return `<section class="finance-modules"><div class="finance-section-head"><div><h2>Meu espaço financeiro</h2><p>Atalhos para organizar seu dia a dia.</p></div></div><div class="finance-module-grid">${items.map(([kind,title,desc,badge,go,focus,layout])=>`<button type="button" class="finance-module finance-module-${kind}" data-go="${go}" ${focus ? 'data-focus="'+focus+'"' : ''} ${layout ? 'data-layout="'+layout+'"' : ''}><span class="finance-module-copy"><b>${title}</b><span>${desc}</span><small>${esc(badge)}</small></span>${financeArt(kind)}</button>`).join("")}</div></section>`;
+  return `<section class="finance-modules"><div class="finance-section-head"><div><h2>Meu espaço financeiro</h2><p>Atalhos para organizar seu dia a dia.</p></div></div><div class="finance-module-grid">${items.map(([kind,title,desc,badge,go,focus,layout])=>`<button type="button" class="finance-module finance-module-${kind}" data-go="${go}" ${focus ? 'data-focus="'+focus+'"' : ''} ${layout ? 'data-layout="'+layout+'"' : ''}><span class="finance-module-copy"><b>${title}</b><span>${desc}</span><small>${esc(badge)}</small></span>${financeArt(kind,go)}</button>`).join("")}</div></section>`;
 }
 function renderFinanceUpcoming(list) {
   const today = todayKey();
@@ -1407,7 +1439,7 @@ function renderFinanceUpcoming(list) {
   return `<article class="panel finance-upcoming"><div class="finance-side-title"><span>${icon("calendar")}</span><h2>Próximos vencimentos</h2></div>${overdue.length ? `<button type="button" class="finance-overdue" data-summary="pending">${overdue.length} em atraso · ${money.format(sum(overdue))}</button>` : ""}<div class="finance-upcoming-list">${pending.length ? pending.slice(0,4).map(item=>`<button type="button" class="finance-due-row" data-edit="${attr(item.id)}">${categoryIconBadge(item)}<span><b>${esc(item.description)}</b><small>${formatDate(item.dueDate)}</small></span><strong>${money.format(item.amount)}</strong></button>`).join("") : '<p class="finance-side-empty">Nenhum vencimento futuro pendente neste período.</p>'}</div><button type="button" class="finance-side-link" data-go="calendar" data-layout="agenda">Ver agenda completa <span aria-hidden="true">→</span></button></article>`;
 }
 function renderFinanceActions() {
-  return `<article class="panel finance-quick"><div class="finance-side-title"><span>${icon("plus")}</span><h2>Ações rápidas</h2></div><div class="finance-quick-grid"><button type="button" data-finance-new ${canEdit() ? "" : "disabled"}>${icon("plus")}<span>Novo lançamento</span></button><button type="button" data-go="planning">${icon("chart")}<span>Planejar caixa</span></button><button type="button" data-go="cards">${icon("credit-card")}<span>Meus cartões</span></button><button type="button" data-go="settings" data-focus="financeSpaces">${icon("wallet")}<span>Gerenciamentos</span></button></div></article>`;
+  return `<article class="panel finance-quick"><div class="finance-side-title"><span>${icon("plus")}</span><h2>Ações rápidas</h2></div><div class="finance-quick-grid"><button type="button" data-finance-new ${canEdit() ? "" : "disabled"}>${icon("plus")}<span>Novo lançamento</span></button><button type="button" data-go="planning">${icon("chart")}<span>Planejar caixa</span></button><button type="button" data-go="cards">${icon("credit-card")}<span>Meus cartões</span></button><button type="button" data-go="spaces">${icon("wallet")}<span>Gerenciamentos</span></button></div></article>`;
 }
 function renderDashboard(monthName) {
   if (!state.selected) return emptyManagement();
@@ -1701,6 +1733,67 @@ function renderCardVisual(card, preview = false) {
     : `<span class="payment-card-logo-fallback">${initials(card.name || "Cartão")}</span>`;
   return `<div class="payment-card ${preview ? "payment-card-preview" : ""}" style="--card-bg:${attr(background)};--card-ink:${attr(ink)}"><div class="payment-card-top"><span class="payment-card-brand">${icon("credit-card")}<b>${esc(card.name || "Nome do cartão")}</b></span><span class="payment-card-logo-wrap">${logo}</span></div><div class="payment-card-bottom"><span><small>TITULAR</small><b>${esc(card.holderName || "Nome do titular")}</b></span>${footer ? `<small>${esc(footer)}</small>` : ""}</div></div>`;
 }
+function renderGoalsCenter() {
+  if (!state.selected) return emptyManagement();
+  const goals = state.selected.goals || [];
+  return `<section class="finance-cards-intro"><h2>Meus objetivos</h2><p>Registre quanto já reservou para cada objetivo. Esses valores são informativos e não alteram seu saldo ou lançamentos.</p>${canEdit() ? '<button class="btn btn-primary" type="button" data-goal-new>+ Nova meta</button>' : ""}</section><section class="summary-grid">${summary("Valor-alvo total",goals.reduce((n,g)=>n+g.target,0),"info","◎")}${summary("Valor reservado",goals.reduce((n,g)=>n+g.saved,0),"success","✓")}${summary("Falta reservar",goals.reduce((n,g)=>n+Math.max(0,g.target-g.saved),0),"danger","◷")}</section><div class="finance-card-grid">${goals.map(goal=>{
+    const progress = Math.min(100,Math.max(0,Math.round(goal.saved/goal.target*100)));
+    return `<article class="panel finance-series-card"><div class="finance-series-head"><span class="finance-space-symbol">${icon("wallet")}</span><div><h2>${esc(goal.name)}</h2><small>${goal.deadline ? "Prazo: "+formatFullDate(goal.deadline) : "Sem prazo definido"}</small></div><span class="finance-series-status">${progress===100 ? "Concluída" : "Em andamento"}</span></div><div class="finance-series-totals"><div><small>Reservado</small><b>${money.format(goal.saved)}</b></div><div><small>Objetivo</small><b>${money.format(goal.target)}</b></div></div><div class="finance-card-progress" role="progressbar" aria-label="Progresso da meta" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span style="width:${progress}%"></span></div><small>${progress}% alcançado · Falta ${money.format(Math.max(0,goal.target-goal.saved))}</small>${canEdit() ? `<div class="finance-card-actions"><button class="btn btn-primary" type="button" data-goal-edit="${attr(goal.id)}">Atualizar meta</button><button class="btn btn-soft" type="button" data-goal-delete="${attr(goal.id)}">Excluir</button></div>` : ""}</article>`;
+  }).join("") || '<p>Nenhuma meta cadastrada neste gerenciamento.</p>'}</div>`;
+}
+function openGoalModal(goal = null) {
+  if (!canEdit()) return;
+  const mid = state.selected.id;
+  showModal(`<form class="modal" id="financeGoalForm"><button class="modal-close" type="button">×</button><h2>${goal ? "Atualizar meta" : "Nova meta financeira"}</h2><label>Nome<input name="name" required maxlength="80" value="${attr(goal?.name || "")}"></label><label>Valor-alvo (R$)<input name="target" type="number" min="0.01" max="1000000000000" step="0.01" required value="${attr(goal?.target ?? "")}"></label><label>Total já reservado (R$)<input name="saved" type="number" min="0" max="1000000000000" step="0.01" required value="${attr(goal?.saved ?? 0)}"></label><label>Prazo opcional<input name="deadline" type="date" value="${attr(goal?.deadline || "")}"></label><p>Informe o total acumulado, não apenas o último depósito. A meta não movimenta seu caixa.</p><button class="btn btn-primary" type="submit">Salvar meta</button></form>`);
+  document.querySelector("#financeGoalForm").onsubmit = async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const button = form.querySelector("button[type=submit]");
+    const data = Object.fromEntries(new FormData(form));
+    data.target=Number(data.target); data.saved=Number(data.saved);
+    busy(button,true);
+    try {
+      if(goal) await ApiService.updateGoal(mid,goal.id,data); else await ApiService.createGoal(mid,data);
+      closeModal(); toast("Meta salva.");
+    } catch(error) { serviceError(error); busy(button,false); }
+  };
+}
+function renderMonthlyComparison() {
+  if (!state.selected) return emptyManagement();
+  const [year,month] = state.month.split("-").map(Number);
+  const months = Array.from({length:6},(_,i)=>{
+    const d = new Date(Date.UTC(year,month-1-5+i,1));
+    const key = d.toISOString().slice(0,7);
+    const items = state.transactions.filter(item=>(item.dueDate || item.plannedDate || "").startsWith(key));
+    const income=sum(items.filter(item=>item.type==="income")), expense=sum(items.filter(item=>item.type==="expense"));
+    return {key,label:new Intl.DateTimeFormat("pt-BR",{month:"short",year:"numeric",timeZone:"UTC"}).format(d),income,expense,balance:income-expense,count:items.length};
+  });
+  const current=months.at(-1), previous=months.at(-2);
+  const max=Math.max(1,...months.flatMap(m=>[m.income,m.expense]));
+  return `<div class="content-head">${monthControl()}</div><section class="finance-cards-intro"><h2>Evolução financeira</h2><p>Últimos seis meses até o período selecionado. Valores previstos por data de vencimento ou recebimento registrada, não extratos bancários.</p></section><section class="summary-grid">${summary("Variação das entradas",current.income-previous.income,"info","↗")}${summary("Variação das despesas",current.expense-previous.expense,"danger","↘")}${summary("Variação do saldo previsto",current.balance-previous.balance,"info","=")}</section><article class="panel finance-comparison"><h2>Entradas e despesas</h2><p>Comparação mensal · verde: entradas · laranja: despesas</p>${months.map(m=>`<div class="finance-comparison-row"><b>${esc(m.label)}</b><div class="finance-comparison-bars"><div><span style="width:${m.income/max*100}%"></span><small>${money.format(m.income)}</small></div><div><span style="width:${m.expense/max*100}%"></span><small>${money.format(m.expense)}</small></div></div><div><small>Saldo previsto</small><strong>${money.format(m.balance)}</strong><small>${m.count} lançamento(s)</small></div></div>`).join("")}</article><article class="panel finance-comparison"><h2>Despesas por categoria no mês</h2>${renderExpenseInsights(new Intl.DateTimeFormat("pt-BR",{month:"long",year:"numeric",timeZone:"UTC"}).format(new Date(state.month+"-01T12:00:00Z")))}</article>`;
+}
+function renderRecurrenceCenter() {
+  if (!state.selected) return emptyManagement();
+  const groups = new Map();
+  for (const item of state.transactions) {
+    if (item.type !== "expense" || !item.recurrenceGroupId || Number(item.recurrenceTotal) <= 1) continue;
+    if (!groups.has(item.recurrenceGroupId)) groups.set(item.recurrenceGroupId, []);
+    groups.get(item.recurrenceGroupId).push(item);
+  }
+  const series = [...groups.values()].map(items => {
+    items.sort((a,b)=>String(a.dueDate).localeCompare(String(b.dueDate)));
+    const pending = items.filter(item=>item.status !== "paid");
+    return {items,pending,first:items[0],next:pending[0],total:sum(items),paid:sum(items.filter(item=>item.status==="paid"))};
+  }).sort((a,b)=>String(a.next?.dueDate || "9999").localeCompare(String(b.next?.dueDate || "9999")));
+  const monthly = series.flatMap(group=>group.items).filter(item=>item.dueDate?.startsWith(state.month));
+  const renderGroup = group => {
+    const {items,pending,first,next,total,paid} = group;
+    const completed = items.length - pending.length;
+    const installment = first.recurrenceType === "installment";
+    return `<article class="panel finance-series-card"><div class="finance-series-head">${categoryIconBadge(first)}<div><h2>${esc(recurrenceBaseDescription(first))}</h2><small>${installment ? "Parcelamento" : "Despesa recorrente"} · ${esc(first.category || "Outros")}</small></div><span class="finance-series-status">${pending.length ? "Em andamento" : "Concluída"}</span></div><div class="finance-series-totals"><div><small>Total registrado da série</small><b>${money.format(total)}</b></div><div><small>Restante a pagar</small><b>${money.format(sum(pending))}</b></div></div><div class="finance-card-progress" role="progressbar" aria-label="Ocorrências pagas" aria-valuemin="0" aria-valuemax="${items.length}" aria-valuenow="${completed}"><span style="width:${completed/items.length*100}%"></span></div><small>${completed} de ${items.length} registros pagos · ${money.format(paid)} pago</small><div class="finance-series-next"><span>${next ? "Próxima pendência" : "Último vencimento"}</span><b>${formatDate((next || items.at(-1)).dueDate)}${next ? " · "+money.format(next.amount) : ""}</b></div><button class="btn btn-soft" type="button" data-edit="${attr((next || items.at(-1)).id)}">${canEdit() ? "Gerenciar lançamento" : "Consultar lançamento"}</button><details><summary>Ver todos os registros (${items.length})</summary><div class="finance-series-records">${items.map(recordRow).join("")}</div></details></article>`;
+  };
+  return `<div class="content-head">${monthControl()}${canEdit() ? '<button type="button" class="btn btn-primary" data-finance-new>+ Novo lançamento</button>' : ""}</div><section class="finance-cards-intro"><h2>Recorrências e parcelamentos</h2><p>Acompanhe séries cadastradas e seus pagamentos. O resumo usa o mês selecionado; as séries exibem todos os registros existentes.</p></section><section class="summary-grid">${summary("Compromissos do mês",sum(monthly),"info","▤")}${summary("Pago no mês",sum(monthly.filter(item=>item.status==="paid")),"success","✓")}${summary("Pendente no mês",sum(monthly.filter(item=>item.status!=="paid")),"danger","◷")}</section><h2 class="finance-card-section-title">Em andamento (${series.filter(group=>group.pending.length).length})</h2><div class="finance-series-grid">${series.filter(group=>group.pending.length).map(renderGroup).join("") || '<p>Nenhuma série com pagamentos pendentes.</p>'}</div>${series.some(group=>!group.pending.length) ? `<details class="finance-archived"><summary>Séries concluídas (${series.filter(group=>!group.pending.length).length})</summary><div class="finance-series-grid">${series.filter(group=>!group.pending.length).map(renderGroup).join("")}</div></details>` : ""}`;
+}
 function renderCardsCenter(monthName) {
   if (!state.selected) return emptyManagement();
   const expenses = monthTransactions().filter(item => item.type === "expense" && item.category === "Cartão");
@@ -1770,6 +1863,57 @@ function empty(text) {
 }
 
 function bindShell() {
+  document.querySelector("[data-goal-new]")?.addEventListener("click",()=>openGoalModal());
+  document.querySelectorAll("[data-goal-edit]").forEach(button=>button.onclick=()=>{
+    const goal=state.selected?.goals?.find(g=>g.id===button.dataset.goalEdit);
+    if(goal) openGoalModal(goal);
+  });
+  document.querySelectorAll("[data-goal-delete]").forEach(button=>button.onclick=async()=>{
+    if(!canEdit() || !confirm("Excluir esta meta? Os lançamentos não serão alterados.")) return;
+    busy(button,true);
+    try { await ApiService.deleteGoal(state.selected.id,button.dataset.goalDelete); toast("Meta excluída."); }
+    catch(error){serviceError(error);busy(button,false);}
+  });
+  document.querySelector("#financePrivacy")?.addEventListener("click", () => {
+    state.hideAmounts = !state.hideAmounts;
+    localStorage.setItem("organiza-hide-amounts", String(state.hideAmounts));
+    renderApp();
+    document.querySelector("#financePrivacy")?.focus();
+  });
+  document.querySelectorAll("[data-finance-select-space]").forEach(button => {
+    button.onclick = () => {
+      const selected = state.managements.find(item => item.id === button.dataset.financeSelectSpace);
+      if (!selected) return;
+      if (selected.id !== state.selected?.id) {
+        state.selected = selected;
+        state.calendarFilters = defaultCalendarFilters();
+        observeSelectedManagement();
+      }
+      state.view = "dashboard";
+      renderApp();
+    };
+  });
+  document.querySelectorAll("[data-finance-edit-space]").forEach(button => {
+    button.onclick = () => {
+      const item = state.managements.find(item => item.id === button.dataset.financeEditSpace);
+      if (item && ["owner","editor"].includes(item.memberRoles?.[state.user.uid])) openManagementModal(item);
+    };
+  });
+  const categoryForm = document.querySelector("#financeCategoriesForm");
+  if (categoryForm && canEdit()) categoryForm.onsubmit = async event => {
+    event.preventDefault();
+    const button = categoryForm.querySelector("button[type=submit]");
+    const data = {};
+    for (const type of ["expense","income"]) {
+      data[type] = [...new Set(categoryForm.elements[type].value.split(/\r?\n/).map(name=>name.trim()).filter(Boolean))].filter(name=>!categories[type].some(base=>normalizeSearch(base)===normalizeSearch(name)));
+    }
+    busy(button,true);
+    try {
+      await ApiService.updateManagement(state.selected.id,{customCategories:data});
+      toast("Categorias atualizadas.");
+    } catch(error) { serviceError(error); }
+    finally { busy(button,false); }
+  };
   document.querySelectorAll("[data-finance-card-agenda]").forEach(button => {
     button.onclick = () => {
       state.calendarFilters = {...defaultCalendarFilters(), expenseCategory: "Cartão", cardId: button.dataset.financeCardAgenda};
@@ -2482,7 +2626,7 @@ function voiceRemoveTerms(command, terms = []) {
 
 function voiceCategory(command, type) {
   const normalized = normalizeVoiceText(command);
-  const categoryList = categories[type];
+  const categoryList = availableCategories(type);
   const direct = categoryList
     .slice()
     .sort((a, b) => b.length - a.length)
@@ -3487,7 +3631,7 @@ function summaryDetailRow(item) {
 function openManagementModal(item = null) {
   const editing = Boolean(item?.id);
   showModal(
-    `<form class="modal" id="managementForm"><button class="modal-close" type="button">×</button><span class="eyebrow">${editing ? "EDITAR" : "NOVO"} ESPAÇO</span><h2>${editing ? "Editar gerenciamento" : "Criar gerenciamento"}</h2><label>Nome<input name="name" placeholder="Ex.: Contas de casa" value="${attr(item?.name || "")}" required maxlength="80"></label><label>Descrição<textarea name="description" placeholder="Opcional" maxlength="240">${esc(item?.description || "")}</textarea></label><button class="btn btn-primary wide" type="submit">${editing ? "Salvar alterações" : "Criar gerenciamento"}</button></form>`,
+    `<form class="modal" id="managementForm"><button class="modal-close" type="button">×</button><span class="eyebrow">${editing ? "EDITAR" : "NOVO"} ESPAÇO</span><h2>${editing ? "Editar gerenciamento" : "Criar gerenciamento"}</h2><label>Nome<input name="name" placeholder="Ex.: Contas de casa" value="${attr(item?.name || "")}" required maxlength="80"></label><label>Descrição<textarea name="description" placeholder="Opcional" maxlength="240">${esc(item?.description || "")}</textarea></label><div class="finance-appearance-fields"><label>Cor do espaço<input type="color" name="color" value="${managementAppearance(item).color}"></label><label>Ícone<select name="symbol">${Object.entries(managementSymbols).map(([key,label])=>`<option value="${key}" ${managementAppearance(item).symbol===key ? "selected" : ""}>${label}</option>`).join("")}</select></label></div><button class="btn btn-primary wide" type="submit">${editing ? "Salvar alterações" : "Criar gerenciamento"}</button></form>`,
   );
   const form = document.querySelector("#managementForm");
   form.onsubmit = async (e) => {
@@ -3500,8 +3644,9 @@ function openManagementModal(item = null) {
         await ApiService.updateManagement(item.id, {
           name: data.name.trim(),
           description: data.description.trim(),
+          appearance: {color:data.color,symbol:data.symbol},
         });
-      else await ApiService.createManagement(data, state.user);
+      else await ApiService.createManagement({name:data.name,description:data.description,appearance:{color:data.color,symbol:data.symbol}}, state.user);
       closeModal();
       toast(editing ? "Gerenciamento atualizado." : "Gerenciamento criado.");
     } catch (err) {
@@ -3793,7 +3938,7 @@ function openRecordModal(item = {}) {
   };
   const fillCategories = () => {
     const current = category.value || item.category;
-    category.innerHTML = `<option value="">Selecione uma categoria</option>${categories[form.type.value]
+    category.innerHTML = `<option value="">Selecione uma categoria</option>${availableCategories(form.type.value, item.type === form.type.value ? item.category : "")
       .map((c) => `<option value="${attr(c)}" ${c === current ? "selected" : ""}>${esc(c === "Cartão" ? "Fatura de cartão" : c)}</option>`)
       .join("")}`;
     form.status.options[1].textContent =
@@ -4114,6 +4259,8 @@ function themeButton() {
 }
 function icon(name) {
   const paths = {
+    eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+    "eye-off": '<path d="m3 3 18 18M10 5.2A11 11 0 0 1 12 5c6 0 10 7 10 7a17 17 0 0 1-3 3.7M6.2 6.2C3.5 8 2 12 2 12s4 7 10 7a11 11 0 0 0 4-.8"/>',
     home: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9 20v-6h6v6"/>',
     calendar:
       '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',
