@@ -253,6 +253,32 @@ export async function createApp({ dataDir = process.env.DATA_DIR || './data', or
             if ('customCategories' in data) next.customCategories = customCategories(data.customCategories);
             store.putManagement(mid, next); return json(res, { ok: true });
           }
+          if (parts[3] === 'goals' && parts.length <= 5) {
+            const goals = Array.isArray(current.goals) ? current.goals.slice() : [];
+            const goalId = parts[4];
+            if (method === 'GET' && !goalId) return json(res, goals);
+            if (method === 'POST' && !goalId || method === 'PATCH' && goalId) {
+              const data = await body(req);
+              // Re-read after awaiting the request body to avoid overwriting concurrent changes.
+              const latest = access(mid, user, 'editor');
+              const nextGoals = Array.isArray(latest.goals) ? latest.goals.slice() : [];
+              const index = nextGoals.findIndex(goal => goal.id === goalId);
+              if (goalId && index < 0) fail(404, 'Meta não encontrada.');
+              if (!goalId && nextGoals.length >= 50) fail(400, 'Limite de 50 metas por gerenciamento.');
+              const previous = goalId ? nextGoals[index] : {};
+              const goal = { ...previous, id: goalId || randomUUID(), name: text(data.name ?? previous.name, 80),
+                target: number(data.target ?? previous.target, 0.01), saved: number(data.saved ?? previous.saved ?? 0),
+                deadline: date(data.deadline ?? previous.deadline ?? ''), updatedAt: now, createdAt: previous.createdAt || now };
+              if (goalId) nextGoals[index] = goal; else nextGoals.push(goal);
+              store.putManagement(mid, { ...latest, goals: nextGoals, updatedAt: now });
+              return json(res, goal, goalId ? 200 : 201);
+            }
+            if (method === 'DELETE' && goalId) {
+              if (!goals.some(goal => goal.id === goalId)) fail(404, 'Meta não encontrada.');
+              store.putManagement(mid, { ...current, goals: goals.filter(goal => goal.id !== goalId), updatedAt: now });
+              return json(res, { ok: true });
+            }
+          }
           if (parts[3] === 'share' && parts.length === 4 && method === 'POST') {
             access(mid, user, 'owner'); const data = await body(req);
             if (!['editor','viewer'].includes(data.role)) fail(400, 'Permissão inválida.');
