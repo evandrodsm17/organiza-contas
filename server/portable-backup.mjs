@@ -103,7 +103,8 @@ export async function decryptPortableBackup(input, output, passphrase) {
       const decipher = createDecipheriv('aes-256-gcm',key,header.subarray(24));
       decipher.setAAD(header); decipher.setAuthTag(tag);
       handle = await open(output,'wx',0o600); created = true;
-      await pipeline(createReadStream(input,{start:headerSize,end:size-17}),decipher,handle.createWriteStream({autoClose:false}));
+      await handle.close(); handle = undefined;
+      await pipeline(createReadStream(input,{start:headerSize,end:size-17}),decipher,createWriteStream(output,{flags:'r+'}));
     } finally { key.fill(0); }
   } catch (error) {
     if (handle) { await handle.close(); handle = undefined; }
