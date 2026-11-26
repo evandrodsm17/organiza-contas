@@ -1,4 +1,7 @@
 import { createServer } from 'node:http';
+import { createReadStream } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
+import { createPortableBackup, validateBackupPassphrase } from './portable-backup.mjs';
 import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import webpush from 'web-push';
 import { readFile, writeFile, unlink, mkdir } from 'node:fs/promises';
@@ -67,6 +70,7 @@ export async function createApp({ dataDir = process.env.DATA_DIR || './data', or
   const uploads = resolve(dataDir, 'uploads');
   await mkdir(uploads, { recursive: true });
   const attempts = new Map();
+  let backupInProgress = false;
   const oauthStates = new Map();
   const json = (res, data, status = 200) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(data)); };
   const cookie = (name, value, age) => `${name}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${age}${secure ? '; Secure' : ''}`;
@@ -222,6 +226,31 @@ export async function createApp({ dataDir = process.env.DATA_DIR || './data', or
         }
         if (user.mustChangePassword && path !== '/api/profile') fail(403, 'Altere sua senha temporária antes de continuar.');
         if (path === '/api/profile' && method === 'GET') return json(res, user);
+        if (path === '/api/admin/backup' && method === 'POST') {
+          master(user);
+          rateLimit(req);
+          const data = await body(req, 8192);
+          validateBackupPassphrase(data.passphrase);
+          if (backupInProgress) fail(409, 'Já existe um backup em andamento.');
+          backupInProgress = true;
+          let backup;
+          try {
+            const entry = store.db.prepare('SELECT password FROM users WHERE id=?').get(user.id);
+            if (!entry?.password || !await verifyPassword(data.currentPassword, entry.password)) fail(403, 'Senha administrativa incorreta.');
+            master(authenticate(req));
+            if (store.db.prepare('SELECT password FROM users WHERE id=?').get(user.id)?.password !== entry.password) fail(403, 'Senha administrativa alterada.');
+            backup = await createPortableBackup({db:store.db, uploads, encryptionKey, passphrase:data.passphrase});
+            master(authenticate(req));
+            if (res.destroyed) return;
+            const stamp = new Date().toISOString().replace(/[:.]/g,'-');
+            res.writeHead(200, {'Content-Type':'application/octet-stream','Content-Disposition':`attachment; filename="organiza-contas-${stamp}.ocbackup"`,'Content-Length':backup.size,'Cache-Control':'no-store'});
+            await pipeline(createReadStream(backup.path),res);
+          } finally {
+            backupInProgress = false;
+            backup?.cleanup();
+          }
+          return;
+        }
         if (path === '/api/push/config' && method === 'GET') return json(res, { enabled: pushReady, publicKey: pushReady ? vapidPublicKey : '' });
         if (path === '/api/users') {
           master(user);
