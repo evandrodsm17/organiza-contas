@@ -1907,19 +1907,18 @@ function empty(text) {
 
 function openBackupModal() {
   if (state.profile?.role !== "master") return;
-  showModal(`<form class="modal" id="adminBackupForm"><button class="modal-close" type="button" aria-label="Fechar">×</button><h2>Exportar backup completo</h2><p>O arquivo inclui dados financeiros e comprovantes de todos os usuários. Escolha uma senha exclusiva para proteger o backup e guarde-a separadamente. Sem ela, não será possível recuperar os dados.</p><label>Sua senha atual de administrador<input type="password" name="currentPassword" autocomplete="current-password" required></label><label>Senha do backup<input type="password" name="passphrase" autocomplete="new-password" minlength="12" maxlength="256" required></label><label>Confirme a senha do backup<input type="password" name="confirmation" autocomplete="new-password" minlength="12" maxlength="256" required></label><p id="backupStatus" role="status" aria-live="polite">O download será iniciado após a geração do arquivo.</p><button type="submit" class="btn btn-primary">Gerar e baixar</button></form>`);
+  showModal(`<form class="modal" id="adminBackupForm"><button class="modal-close" type="button" aria-label="Fechar">×</button><h2>Exportar backup completo</h2><p>O arquivo inclui dados financeiros e comprovantes de todos os usuários. Escolha uma senha exclusiva para proteger o backup e guarde-a separadamente. Sem ela, não será possível recuperar os dados.</p><label>Senha do backup<input type="password" name="passphrase" autocomplete="new-password" minlength="12" maxlength="256" required></label><label>Confirme a senha do backup<input type="password" name="confirmation" autocomplete="new-password" minlength="12" maxlength="256" required></label><p id="backupStatus" role="status" aria-live="polite">O download será iniciado após a geração do arquivo.</p><button type="submit" class="btn btn-primary">Gerar e baixar</button></form>`);
   const form=document.querySelector("#adminBackupForm");
   form.onsubmit=async event=>{
     event.preventDefault();
     const fields=form.elements;
     if(fields.passphrase.value!==fields.confirmation.value){toast("As senhas do backup não coincidem.","danger");return;}
-    if(fields.currentPassword.value===fields.passphrase.value){toast("Escolha uma senha de backup diferente da senha de acesso.","danger");return;}
     const button=form.querySelector("button[type=submit]");
     busy(button,true);
     const status=form.querySelector("#backupStatus");
     status.textContent="Gerando e protegendo o arquivo. Mantenha a página aberta.";
     try {
-      const response=await fetch("/api/admin/backup",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json","X-Organiza-Request":"1"},body:JSON.stringify({currentPassword:fields.currentPassword.value,passphrase:fields.passphrase.value})});
+      const response=await fetch("/api/admin/backup",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json","X-Organiza-Request":"1"},body:JSON.stringify({passphrase:fields.passphrase.value})});
       if(!response.ok){const error=await response.json().catch(()=>({}));throw new Error(error.error||"Não foi possível gerar o backup.");}
       const blob=await response.blob();
       const filename=response.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/)?.[1] || "organiza-contas.ocbackup";
