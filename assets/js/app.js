@@ -430,37 +430,7 @@ function categoryIconBadge(item, baseClass = "cat-icon") {
   return `<span class="${baseClass} ${tone}" title="${attr(label)}" aria-hidden="true">${icon(categoryIconName(item))}</span>`;
 }
 
-const onboarding = createOnboarding({state,api:ApiService,esc,attr,toast,render:renderApp,today:todayKey});
-ApiService.observeAuth(async (user) => {
-  onboarding.reset();
-  document.querySelector("#onboardingRoot")?.remove();
-  cleanupObservers();
-  state.user = user;
-  if (!user) {
-    state.profile = null;
-    state.managements = [];
-    state.selected = null;
-    state.transactions = [];
-    state.cards = [];
-    state.users = [];
-    state.adminUserQuery = "";
-    state.view = "dashboard";
-    renderPublic();
-    return;
-  }
-  try {
-    state.profile = await ApiService.profile(user.uid);
-    if (!state.profile?.active)
-      throw new Error(
-        "Seu acesso está inativo ou ainda não foi autorizado pelo master.",
-      );
-    if (state.profile.mustChangePassword) { renderForcedPasswordChange(); return; }
-    observeManagements();
-  } catch (error) {
-    toast(error.message, "danger");
-    await ApiService.logout();
-  }
-});
+
 
 function cleanupObservers() {
   stopManagements();
@@ -4421,3 +4391,36 @@ function esc(value = "") {
     .replaceAll("'", "&#039;");
 }
 const attr = esc;
+
+// Initialize after all module-level helpers and constants are ready.
+const onboarding = createOnboarding({state,api:ApiService,esc,attr,toast,render:renderApp,today:todayKey});
+ApiService.observeAuth(async (user) => {
+  onboarding.reset();
+  document.querySelector("#onboardingRoot")?.remove();
+  cleanupObservers();
+  state.user = user;
+  if (!user) {
+    state.profile = null;
+    state.managements = [];
+    state.selected = null;
+    state.transactions = [];
+    state.cards = [];
+    state.users = [];
+    state.adminUserQuery = "";
+    state.view = "dashboard";
+    renderPublic();
+    return;
+  }
+  try {
+    state.profile = await ApiService.profile(user.uid);
+    if (!state.profile?.active)
+      throw new Error(
+        "Seu acesso está inativo ou ainda não foi autorizado pelo master.",
+      );
+    if (state.profile.mustChangePassword) { renderForcedPasswordChange(); return; }
+    observeManagements();
+  } catch (error) {
+    toast(error.message, "danger");
+    await ApiService.logout();
+  }
+});
