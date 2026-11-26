@@ -235,10 +235,9 @@ export async function createApp({ dataDir = process.env.DATA_DIR || './data', or
           backupInProgress = true;
           let backup;
           try {
-            const entry = store.db.prepare('SELECT password FROM users WHERE id=?').get(user.id);
-            if (!entry?.password || !await verifyPassword(data.currentPassword, entry.password)) fail(403, 'Senha administrativa incorreta.');
-            master(authenticate(req));
-            if (store.db.prepare('SELECT password FROM users WHERE id=?').get(user.id)?.password !== entry.password) fail(403, 'Senha administrativa alterada.');
+            const activeMaster = authenticate(req);
+            master(activeMaster);
+            if (activeMaster.mustChangePassword) fail(403, 'Altere sua senha temporária antes de continuar.');
             backup = await createPortableBackup({db:store.db, uploads, encryptionKey, passphrase:data.passphrase});
             master(authenticate(req));
             if (res.destroyed) return;
