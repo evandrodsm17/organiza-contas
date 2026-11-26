@@ -31,7 +31,7 @@ O [GitHub Actions](.github/workflows/deploy.yml) testa pull requests e publica a
 
 ## Backup portátil fora da VPS
 
-Entre como master e abra **Configurações → Backup completo → Gerar e baixar backup**. Confirme sua senha administrativa e escolha outra senha de pelo menos 12 caracteres, preferencialmente aleatória e longa. O arquivo `.ocbackup` contém o banco SQLite consistente, os comprovantes referenciados e a chave dos comprovantes, protegidos com AES-256-GCM e derivação scrypt. Sessões são removidas somente da cópia; os usuários precisarão entrar novamente após a restauração. O download não modifica a base ativa. A exportação web limita banco + comprovantes a 512 MiB; use também o backup operacional para bases maiores. Guarde o arquivo e a senha em locais distintos, fora da VPS.
+Entre como master e abra **Configurações → Backup completo → Gerar e baixar backup**. A sessão master ativa autoriza a exportação, sem solicitar novamente a senha de login. Escolha uma senha exclusiva para o backup, de pelo menos 12 caracteres, preferencialmente aleatória e longa. O arquivo `.ocbackup` contém o banco SQLite consistente, os comprovantes referenciados e a chave dos comprovantes, protegidos com AES-256-GCM e derivação scrypt. Sessões são removidas somente da cópia; os usuários precisarão entrar novamente após a restauração. O download não modifica a base ativa. A exportação web limita banco + comprovantes a 512 MiB; use também o backup operacional para bases maiores. Guarde o arquivo e a senha em locais distintos, fora da VPS.
 
 ### Recuperar em uma nova máquina (Node.js 24 e tar)
 
