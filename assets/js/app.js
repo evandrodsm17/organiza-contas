@@ -3658,10 +3658,15 @@ function openSummaryModal(type) {
   const total = sum(items);
   const rows = items.length
     ? `<div class="summary-detail-list">${items.map(summaryDetailRow).join("")}</div>`
-    : `<div class="summary-detail-empty">Nenhum lançamento compõe este total.</div>`;
+    : `<div class="summary-detail-empty" style="display:flex;flex-direction:column;align-items:center;gap:16px"><span>Nenhum lançamento compõe este total.</span>${canEdit() && ["income","expense"].includes(type) ? `<button class="btn btn-primary" id="summaryNewRecord" type="button">${icon("plus")} ${type === "income" ? "Adicionar entrada" : "Adicionar despesa"}</button>` : ""}</div>`;
   showModal(
     `<article class="modal modal-large summary-detail-modal"><button class="modal-close" type="button">×</button><span class="eyebrow">${definition.eyebrow}</span><h2>${definition.title}</h2><p>${definition.description}</p><div class="summary-detail-total"><div><small>Total considerado</small><b>${money.format(total)}</b></div><span>${items.length} ${items.length === 1 ? "lançamento" : "lançamentos"}</span></div>${rows}</article>`,
   );
+  document.querySelector("#summaryNewRecord")?.addEventListener("click", () => {
+    if (!canEdit()) return;
+    const today = todayKey();
+    openRecordModal({type, dueDate: today.startsWith(state.month) ? today : state.month + "-01"});
+  });
   document.querySelectorAll("[data-summary-edit]").forEach(
     (button) =>
       (button.onclick = () => {
